@@ -104,7 +104,7 @@ class FileCache(CacheBase[KeyT, ValueT]):
 
     def get_cached(self, key: KeyT) -> ValueT:
         cache_path = self.get_cache_path(key)
-        logger.info(f"Loading from file cache for key {key} at {cache_path}")
+        logger.debug(f"Loading from file cache for key {key} at {cache_path}")
         text = cache_path.read_text(encoding="utf-8")
         if not text.strip():
             logger.warning("Empty cache file for key %s — deleting", key)
