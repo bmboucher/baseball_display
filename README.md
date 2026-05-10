@@ -16,6 +16,26 @@ baseball-display
 
 The UI font is bundled with the app and loaded from package assets, so text rendering no longer depends on the host system monospace font. This keeps desktop and Raspberry Pi builds on the same Fira Code font files.
 
+## Raspberry Pi Encoder Input
+
+When running on a Raspberry Pi with `RPi.GPIO` available, the app now also reads two rotary encoders and their push buttons in addition to normal pygame keyboard input.
+
+Wiring uses BCM numbering:
+
+- Device A switch: GPIO 17
+- Device A encoder: GPIO 27 (CLK), GPIO 22 (DT)
+- Device B switch: GPIO 5
+- Device B encoder: GPIO 6 (CLK), GPIO 13 (DT)
+
+The hardware inputs are translated to the same `pygame.KEYDOWN` events used for desktop development:
+
+- Device A rotation: left and right arrow keys
+- Device A button press: return
+- Device B rotation: up and down arrow keys
+- Device B button press: space
+
+If Raspberry Pi detection fails or `RPi.GPIO` is unavailable, the app falls back to keyboard-only input without changing desktop behavior.
+
 The `.venv` is at `C:\Repos\baseball_display\.venv`. The project uses Python 3.12 and pygame 2.6.
 
 ---

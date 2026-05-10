@@ -5,6 +5,7 @@ import pygame
 
 import baseball_display.display_constants as dc
 from baseball_display import state
+from baseball_display.pi_input import PiInputAdapter
 from baseball_display.screens import (
     Diamond,
     LeftJumbotron,
@@ -55,12 +56,17 @@ def main() -> None:
     )
     pygame.display.set_caption(dc.APP_WINDOW_TITLE)
     screens: list[ScreenBuffer] = [LeftJumbotron(), RightJumbotron(), Diamond()]
+    pi_input = PiInputAdapter.create()
 
     logger.info("Starting main loop...")
     try:
         while True:
             # handle user input
-            for event in pygame.event.get():
+            events = pygame.event.get()
+            if pi_input is not None:
+                events.extend(pi_input.poll_pygame_events())
+
+            for event in events:
                 if event.type == pygame.QUIT:
                     raise KeyboardInterrupt
 
@@ -84,4 +90,7 @@ def main() -> None:
                 logger.exception(f"Error updating state")
     except KeyboardInterrupt:
         logger.info("Exiting...")
+    finally:
+        if pi_input is not None:
+            pi_input.close()
         pygame.quit()

@@ -12,6 +12,11 @@ dependencies = [
     "MLB-StatsAPI",
 ]
 
+[project.optional-dependencies]
+raspberry-pi = [
+    "RPi.GPIO",
+]
+
 [tool.setuptools]
 packages = ["baseball_display"]
 include-package-data = true
