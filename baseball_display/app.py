@@ -57,6 +57,10 @@ def main() -> None:
     pygame.display.set_caption(dc.APP_WINDOW_TITLE)
     screens: list[ScreenBuffer] = [LeftJumbotron(), RightJumbotron(), Diamond()]
     pi_input = PiInputAdapter.create()
+    if pi_input is None:
+        logger.info("Pi GPIO input adapter inactive; keyboard-only input enabled")
+    else:
+        logger.info("Pi GPIO input adapter active")
 
     logger.info("Starting main loop...")
     try:

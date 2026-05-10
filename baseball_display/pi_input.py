@@ -124,13 +124,22 @@ class PiInputAdapter:
 
     @classmethod
     def create(cls) -> PiInputAdapter | None:
-        if not _is_raspberry_pi():
+        if not sys.platform.startswith("linux"):
+            logger.info("Pi GPIO input disabled: non-Linux platform")
             return None
+
+        if not _is_raspberry_pi():
+            logger.info(
+                "Raspberry Pi model string not detected; attempting GPIO init on Linux anyway"
+            )
 
         try:
             import RPi.GPIO as gpio  # type: ignore[import-not-found]
-        except Exception:
-            logger.info("RPi.GPIO not available; running keyboard-only input mode")
+        except Exception as exc:
+            logger.info(
+                "RPi.GPIO not available (%s); running keyboard-only input mode",
+                exc,
+            )
             return None
 
         try:
@@ -208,13 +217,17 @@ class PiInputAdapter:
 
 
 def _is_raspberry_pi() -> bool:
-    if not sys.platform.startswith("linux"):
-        return False
+    model_paths = [
+        Path("/proc/device-tree/model"),
+        Path("/sys/firmware/devicetree/base/model"),
+    ]
 
-    model_file = Path("/proc/device-tree/model")
-    try:
-        model = model_file.read_text(encoding="utf-8", errors="ignore")
-    except Exception:
-        return False
+    for model_file in model_paths:
+        try:
+            model = model_file.read_text(encoding="utf-8", errors="ignore")
+        except Exception:
+            continue
+        if "Raspberry Pi" in model:
+            return True
 
-    return "Raspberry Pi" in model
+    return False
