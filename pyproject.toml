@@ -14,6 +14,10 @@ dependencies = [
 
 [tool.setuptools]
 packages = ["baseball_display"]
+include-package-data = true
+
+[tool.setuptools.package-data]
+baseball_display = ["assets/fonts/*.ttf", "assets/fonts/*.txt"]
 
 [project.scripts]
 baseball-display = "baseball_display.app:main"

@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from importlib.resources import as_file, files
 from typing import Any, Generator, Optional
 
 import pygame
@@ -9,14 +10,23 @@ from baseball_display.state import DisplayMode, get_state
 
 _UNSET: object = object()
 
+_FONT_FILES = {
+    False: "FiraCode-Regular.ttf",
+    True: "FiraCode-Bold.ttf",
+}
+
 _font_cache: dict[tuple[int, bool], pygame.font.Font] = {}
 
 
 def make_font(size: int, bold: bool = False) -> pygame.font.Font:
-    """Return a cached monospace SysFont at the given size and weight."""
+    """Return a cached bundled Fira Code font at the given size and weight."""
     key = (size, bold)
     if key not in _font_cache:
-        _font_cache[key] = pygame.font.SysFont("monospace", size, bold=bold)
+        font_resource = files("baseball_display").joinpath(
+            "assets", "fonts", _FONT_FILES[bold]
+        )
+        with as_file(font_resource) as font_path:
+            _font_cache[key] = pygame.font.Font(font_path, size)
     return _font_cache[key]
 
 

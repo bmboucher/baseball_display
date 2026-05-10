@@ -14,6 +14,8 @@ Or, after installing the package:
 baseball-display
 ```
 
+The UI font is bundled with the app and loaded from package assets, so text rendering no longer depends on the host system monospace font. This keeps desktop and Raspberry Pi builds on the same Fira Code font files.
+
 The `.venv` is at `C:\Repos\baseball_display\.venv`. The project uses Python 3.12 and pygame 2.6.
 
 ---
