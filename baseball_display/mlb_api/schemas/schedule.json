@@ -1,0 +1,1451 @@
+{
+  "$schema": "http://json-schema.org/schema#",
+  "type": "object",
+  "properties": {
+    "copyright": {
+      "type": "string"
+    },
+    "totalItems": {
+      "type": "integer"
+    },
+    "totalEvents": {
+      "type": "integer"
+    },
+    "totalGames": {
+      "type": "integer"
+    },
+    "totalGamesInProgress": {
+      "type": "integer"
+    },
+    "dates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string"
+          },
+          "totalItems": {
+            "type": "integer"
+          },
+          "totalEvents": {
+            "type": "integer"
+          },
+          "totalGames": {
+            "type": "integer"
+          },
+          "totalGamesInProgress": {
+            "type": "integer"
+          },
+          "games": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "gamePk": {
+                  "type": "integer"
+                },
+                "gameGuid": {
+                  "type": "string"
+                },
+                "link": {
+                  "type": "string"
+                },
+                "gameType": {
+                  "type": "string"
+                },
+                "season": {
+                  "type": "string"
+                },
+                "gameDate": {
+                  "type": "string"
+                },
+                "officialDate": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "object",
+                  "properties": {
+                    "abstractGameState": {
+                      "type": "string"
+                    },
+                    "codedGameState": {
+                      "type": "string"
+                    },
+                    "detailedState": {
+                      "type": "string"
+                    },
+                    "statusCode": {
+                      "type": "string"
+                    },
+                    "startTimeTBD": {
+                      "type": "boolean"
+                    },
+                    "abstractGameCode": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "abstractGameCode",
+                    "abstractGameState",
+                    "codedGameState",
+                    "detailedState",
+                    "startTimeTBD",
+                    "statusCode"
+                  ]
+                },
+                "teams": {
+                  "type": "object",
+                  "properties": {
+                    "away": {
+                      "type": "object",
+                      "properties": {
+                        "team": {
+                          "type": "object",
+                          "properties": {
+                            "springLeague": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "integer"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "link": {
+                                  "type": "string"
+                                },
+                                "abbreviation": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "abbreviation",
+                                "id",
+                                "link",
+                                "name"
+                              ]
+                            },
+                            "allStarStatus": {
+                              "type": "string"
+                            },
+                            "id": {
+                              "type": "integer"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "link": {
+                              "type": "string"
+                            },
+                            "season": {
+                              "type": "integer"
+                            },
+                            "venue": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "integer"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "link": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "link",
+                                "name"
+                              ]
+                            },
+                            "springVenue": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "integer"
+                                },
+                                "link": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "link"
+                              ]
+                            },
+                            "teamCode": {
+                              "type": "string"
+                            },
+                            "fileCode": {
+                              "type": "string"
+                            },
+                            "abbreviation": {
+                              "type": "string"
+                            },
+                            "teamName": {
+                              "type": "string"
+                            },
+                            "locationName": {
+                              "type": "string"
+                            },
+                            "firstYearOfPlay": {
+                              "type": "string"
+                            },
+                            "league": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "integer"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "link": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "link",
+                                "name"
+                              ]
+                            },
+                            "division": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "integer"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "link": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "link",
+                                "name"
+                              ]
+                            },
+                            "sport": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "integer"
+                                },
+                                "link": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "link",
+                                "name"
+                              ]
+                            },
+                            "shortName": {
+                              "type": "string"
+                            },
+                            "franchiseName": {
+                              "type": "string"
+                            },
+                            "clubName": {
+                              "type": "string"
+                            },
+                            "active": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "abbreviation",
+                            "active",
+                            "allStarStatus",
+                            "clubName",
+                            "division",
+                            "fileCode",
+                            "firstYearOfPlay",
+                            "franchiseName",
+                            "id",
+                            "league",
+                            "link",
+                            "locationName",
+                            "name",
+                            "season",
+                            "shortName",
+                            "sport",
+                            "springLeague",
+                            "springVenue",
+                            "teamCode",
+                            "teamName",
+                            "venue"
+                          ]
+                        },
+                        "leagueRecord": {
+                          "type": "object",
+                          "properties": {
+                            "wins": {
+                              "type": "integer"
+                            },
+                            "losses": {
+                              "type": "integer"
+                            },
+                            "pct": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "losses",
+                            "pct",
+                            "wins"
+                          ]
+                        },
+                        "score": {
+                          "type": "integer"
+                        },
+                        "isWinner": {
+                          "type": "boolean"
+                        },
+                        "splitSquad": {
+                          "type": "boolean"
+                        },
+                        "seriesNumber": {
+                          "type": "integer"
+                        },
+                        "springLeague": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "integer"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "link": {
+                              "type": "string"
+                            },
+                            "abbreviation": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "abbreviation",
+                            "id",
+                            "link",
+                            "name"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "isWinner",
+                        "leagueRecord",
+                        "score",
+                        "seriesNumber",
+                        "splitSquad",
+                        "springLeague",
+                        "team"
+                      ]
+                    },
+                    "home": {
+                      "type": "object",
+                      "properties": {
+                        "team": {
+                          "type": "object",
+                          "properties": {
+                            "springLeague": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "integer"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "link": {
+                                  "type": "string"
+                                },
+                                "abbreviation": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "abbreviation",
+                                "id",
+                                "link",
+                                "name"
+                              ]
+                            },
+                            "allStarStatus": {
+                              "type": "string"
+                            },
+                            "id": {
+                              "type": "integer"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "link": {
+                              "type": "string"
+                            },
+                            "season": {
+                              "type": "integer"
+                            },
+                            "venue": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "integer"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "link": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "link",
+                                "name"
+                              ]
+                            },
+                            "springVenue": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "integer"
+                                },
+                                "link": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "link"
+                              ]
+                            },
+                            "teamCode": {
+                              "type": "string"
+                            },
+                            "fileCode": {
+                              "type": "string"
+                            },
+                            "abbreviation": {
+                              "type": "string"
+                            },
+                            "teamName": {
+                              "type": "string"
+                            },
+                            "locationName": {
+                              "type": "string"
+                            },
+                            "firstYearOfPlay": {
+                              "type": "string"
+                            },
+                            "league": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "integer"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "link": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "link",
+                                "name"
+                              ]
+                            },
+                            "division": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "integer"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "link": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "link",
+                                "name"
+                              ]
+                            },
+                            "sport": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "integer"
+                                },
+                                "link": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "link",
+                                "name"
+                              ]
+                            },
+                            "shortName": {
+                              "type": "string"
+                            },
+                            "franchiseName": {
+                              "type": "string"
+                            },
+                            "clubName": {
+                              "type": "string"
+                            },
+                            "active": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "abbreviation",
+                            "active",
+                            "allStarStatus",
+                            "clubName",
+                            "division",
+                            "fileCode",
+                            "firstYearOfPlay",
+                            "franchiseName",
+                            "id",
+                            "league",
+                            "link",
+                            "locationName",
+                            "name",
+                            "season",
+                            "shortName",
+                            "sport",
+                            "springLeague",
+                            "springVenue",
+                            "teamCode",
+                            "teamName",
+                            "venue"
+                          ]
+                        },
+                        "leagueRecord": {
+                          "type": "object",
+                          "properties": {
+                            "wins": {
+                              "type": "integer"
+                            },
+                            "losses": {
+                              "type": "integer"
+                            },
+                            "pct": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "losses",
+                            "pct",
+                            "wins"
+                          ]
+                        },
+                        "score": {
+                          "type": "integer"
+                        },
+                        "isWinner": {
+                          "type": "boolean"
+                        },
+                        "splitSquad": {
+                          "type": "boolean"
+                        },
+                        "seriesNumber": {
+                          "type": "integer"
+                        },
+                        "springLeague": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "integer"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "link": {
+                              "type": "string"
+                            },
+                            "abbreviation": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "abbreviation",
+                            "id",
+                            "link",
+                            "name"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "isWinner",
+                        "leagueRecord",
+                        "score",
+                        "seriesNumber",
+                        "splitSquad",
+                        "springLeague",
+                        "team"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "away",
+                    "home"
+                  ]
+                },
+                "linescore": {
+                  "type": "object",
+                  "properties": {
+                    "currentInning": {
+                      "type": "integer"
+                    },
+                    "currentInningOrdinal": {
+                      "type": "string"
+                    },
+                    "inningState": {
+                      "type": "string"
+                    },
+                    "inningHalf": {
+                      "type": "string"
+                    },
+                    "isTopInning": {
+                      "type": "boolean"
+                    },
+                    "scheduledInnings": {
+                      "type": "integer"
+                    },
+                    "innings": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "num": {
+                            "type": "integer"
+                          },
+                          "ordinalNum": {
+                            "type": "string"
+                          },
+                          "home": {
+                            "type": "object",
+                            "properties": {
+                              "runs": {
+                                "type": "integer"
+                              },
+                              "hits": {
+                                "type": "integer"
+                              },
+                              "errors": {
+                                "type": "integer"
+                              },
+                              "leftOnBase": {
+                                "type": "integer"
+                              }
+                            },
+                            "required": [
+                              "errors",
+                              "hits",
+                              "leftOnBase"
+                            ]
+                          },
+                          "away": {
+                            "type": "object",
+                            "properties": {
+                              "runs": {
+                                "type": "integer"
+                              },
+                              "hits": {
+                                "type": "integer"
+                              },
+                              "errors": {
+                                "type": "integer"
+                              },
+                              "leftOnBase": {
+                                "type": "integer"
+                              }
+                            },
+                            "required": [
+                              "errors",
+                              "hits",
+                              "leftOnBase",
+                              "runs"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "away",
+                          "home",
+                          "num",
+                          "ordinalNum"
+                        ]
+                      }
+                    },
+                    "teams": {
+                      "type": "object",
+                      "properties": {
+                        "home": {
+                          "type": "object",
+                          "properties": {
+                            "runs": {
+                              "type": "integer"
+                            },
+                            "hits": {
+                              "type": "integer"
+                            },
+                            "errors": {
+                              "type": "integer"
+                            },
+                            "leftOnBase": {
+                              "type": "integer"
+                            },
+                            "isWinner": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "errors",
+                            "hits",
+                            "leftOnBase",
+                            "runs"
+                          ]
+                        },
+                        "away": {
+                          "type": "object",
+                          "properties": {
+                            "runs": {
+                              "type": "integer"
+                            },
+                            "hits": {
+                              "type": "integer"
+                            },
+                            "errors": {
+                              "type": "integer"
+                            },
+                            "leftOnBase": {
+                              "type": "integer"
+                            },
+                            "isWinner": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "errors",
+                            "hits",
+                            "leftOnBase",
+                            "runs"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "away",
+                        "home"
+                      ]
+                    },
+                    "defense": {
+                      "type": "object",
+                      "properties": {
+                        "pitcher": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "integer"
+                            },
+                            "fullName": {
+                              "type": "string"
+                            },
+                            "link": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "fullName",
+                            "id",
+                            "link"
+                          ]
+                        },
+                        "catcher": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "integer"
+                            },
+                            "fullName": {
+                              "type": "string"
+                            },
+                            "link": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "fullName",
+                            "id",
+                            "link"
+                          ]
+                        },
+                        "first": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "integer"
+                            },
+                            "fullName": {
+                              "type": "string"
+                            },
+                            "link": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "fullName",
+                            "id",
+                            "link"
+                          ]
+                        },
+                        "second": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "integer"
+                            },
+                            "fullName": {
+                              "type": "string"
+                            },
+                            "link": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "fullName",
+                            "id",
+                            "link"
+                          ]
+                        },
+                        "third": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "integer"
+                            },
+                            "fullName": {
+                              "type": "string"
+                            },
+                            "link": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "fullName",
+                            "id",
+                            "link"
+                          ]
+                        },
+                        "shortstop": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "integer"
+                            },
+                            "fullName": {
+                              "type": "string"
+                            },
+                            "link": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "fullName",
+                            "id",
+                            "link"
+                          ]
+                        },
+                        "left": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "integer"
+                            },
+                            "fullName": {
+                              "type": "string"
+                            },
+                            "link": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "fullName",
+                            "id",
+                            "link"
+                          ]
+                        },
+                        "center": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "integer"
+                            },
+                            "fullName": {
+                              "type": "string"
+                            },
+                            "link": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "fullName",
+                            "id",
+                            "link"
+                          ]
+                        },
+                        "right": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "integer"
+                            },
+                            "fullName": {
+                              "type": "string"
+                            },
+                            "link": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "fullName",
+                            "id",
+                            "link"
+                          ]
+                        },
+                        "batter": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "integer"
+                            },
+                            "fullName": {
+                              "type": "string"
+                            },
+                            "link": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "fullName",
+                            "id",
+                            "link"
+                          ]
+                        },
+                        "onDeck": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "integer"
+                            },
+                            "fullName": {
+                              "type": "string"
+                            },
+                            "link": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "fullName",
+                            "id",
+                            "link"
+                          ]
+                        },
+                        "inHole": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "integer"
+                            },
+                            "fullName": {
+                              "type": "string"
+                            },
+                            "link": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "fullName",
+                            "id",
+                            "link"
+                          ]
+                        },
+                        "battingOrder": {
+                          "type": "integer"
+                        },
+                        "team": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "integer"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "link": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "link",
+                            "name"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "batter",
+                        "battingOrder",
+                        "catcher",
+                        "center",
+                        "first",
+                        "inHole",
+                        "left",
+                        "onDeck",
+                        "pitcher",
+                        "right",
+                        "second",
+                        "shortstop",
+                        "team",
+                        "third"
+                      ]
+                    },
+                    "offense": {
+                      "type": "object",
+                      "properties": {
+                        "batter": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "integer"
+                            },
+                            "fullName": {
+                              "type": "string"
+                            },
+                            "link": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "fullName",
+                            "id",
+                            "link"
+                          ]
+                        },
+                        "onDeck": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "integer"
+                            },
+                            "fullName": {
+                              "type": "string"
+                            },
+                            "link": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "fullName",
+                            "id",
+                            "link"
+                          ]
+                        },
+                        "inHole": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "integer"
+                            },
+                            "fullName": {
+                              "type": "string"
+                            },
+                            "link": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "fullName",
+                            "id",
+                            "link"
+                          ]
+                        },
+                        "second": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "integer"
+                            },
+                            "fullName": {
+                              "type": "string"
+                            },
+                            "link": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "fullName",
+                            "id",
+                            "link"
+                          ]
+                        },
+                        "pitcher": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "integer"
+                            },
+                            "fullName": {
+                              "type": "string"
+                            },
+                            "link": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "fullName",
+                            "id",
+                            "link"
+                          ]
+                        },
+                        "battingOrder": {
+                          "type": "integer"
+                        },
+                        "team": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "integer"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "link": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "link",
+                            "name"
+                          ]
+                        },
+                        "third": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "integer"
+                            },
+                            "fullName": {
+                              "type": "string"
+                            },
+                            "link": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "fullName",
+                            "id",
+                            "link"
+                          ]
+                        },
+                        "first": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "integer"
+                            },
+                            "fullName": {
+                              "type": "string"
+                            },
+                            "link": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "fullName",
+                            "id",
+                            "link"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "batter",
+                        "battingOrder",
+                        "inHole",
+                        "onDeck",
+                        "pitcher",
+                        "team"
+                      ]
+                    },
+                    "balls": {
+                      "type": "integer"
+                    },
+                    "strikes": {
+                      "type": "integer"
+                    },
+                    "outs": {
+                      "type": "integer"
+                    },
+                    "note": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "balls",
+                    "currentInning",
+                    "currentInningOrdinal",
+                    "defense",
+                    "inningHalf",
+                    "inningState",
+                    "innings",
+                    "isTopInning",
+                    "offense",
+                    "outs",
+                    "scheduledInnings",
+                    "strikes",
+                    "teams"
+                  ]
+                },
+                "venue": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "link": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "link",
+                    "name"
+                  ]
+                },
+                "content": {
+                  "type": "object",
+                  "properties": {
+                    "link": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "link"
+                  ]
+                },
+                "isTie": {
+                  "type": "boolean"
+                },
+                "gameNumber": {
+                  "type": "integer"
+                },
+                "publicFacing": {
+                  "type": "boolean"
+                },
+                "doubleHeader": {
+                  "type": "string"
+                },
+                "gamedayType": {
+                  "type": "string"
+                },
+                "tiebreaker": {
+                  "type": "string"
+                },
+                "calendarEventID": {
+                  "type": "string"
+                },
+                "seasonDisplay": {
+                  "type": "string"
+                },
+                "dayNight": {
+                  "type": "string"
+                },
+                "scheduledInnings": {
+                  "type": "integer"
+                },
+                "reverseHomeAwayStatus": {
+                  "type": "boolean"
+                },
+                "inningBreakLength": {
+                  "type": "integer"
+                },
+                "gamesInSeries": {
+                  "type": "integer"
+                },
+                "seriesGameNumber": {
+                  "type": "integer"
+                },
+                "seriesDescription": {
+                  "type": "string"
+                },
+                "review": {
+                  "type": "object",
+                  "properties": {
+                    "hasChallenges": {
+                      "type": "boolean"
+                    },
+                    "away": {
+                      "type": "object",
+                      "properties": {
+                        "used": {
+                          "type": "integer"
+                        },
+                        "remaining": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "remaining",
+                        "used"
+                      ]
+                    },
+                    "home": {
+                      "type": "object",
+                      "properties": {
+                        "used": {
+                          "type": "integer"
+                        },
+                        "remaining": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "remaining",
+                        "used"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "away",
+                    "hasChallenges",
+                    "home"
+                  ]
+                },
+                "flags": {
+                  "type": "object",
+                  "properties": {
+                    "noHitter": {
+                      "type": "boolean"
+                    },
+                    "perfectGame": {
+                      "type": "boolean"
+                    },
+                    "awayTeamNoHitter": {
+                      "type": "boolean"
+                    },
+                    "awayTeamPerfectGame": {
+                      "type": "boolean"
+                    },
+                    "homeTeamNoHitter": {
+                      "type": "boolean"
+                    },
+                    "homeTeamPerfectGame": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "awayTeamNoHitter",
+                    "awayTeamPerfectGame",
+                    "homeTeamNoHitter",
+                    "homeTeamPerfectGame",
+                    "noHitter",
+                    "perfectGame"
+                  ]
+                },
+                "recordSource": {
+                  "type": "string"
+                },
+                "ifNecessary": {
+                  "type": "string"
+                },
+                "ifNecessaryDescription": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "calendarEventID",
+                "content",
+                "dayNight",
+                "doubleHeader",
+                "flags",
+                "gameDate",
+                "gameGuid",
+                "gameNumber",
+                "gamePk",
+                "gameType",
+                "gamedayType",
+                "gamesInSeries",
+                "ifNecessary",
+                "ifNecessaryDescription",
+                "inningBreakLength",
+                "isTie",
+                "linescore",
+                "link",
+                "officialDate",
+                "publicFacing",
+                "recordSource",
+                "reverseHomeAwayStatus",
+                "review",
+                "scheduledInnings",
+                "season",
+                "seasonDisplay",
+                "seriesDescription",
+                "seriesGameNumber",
+                "status",
+                "teams",
+                "tiebreaker",
+                "venue"
+              ]
+            }
+          },
+          "events": {
+            "type": "array"
+          }
+        },
+        "required": [
+          "date",
+          "events",
+          "games",
+          "totalEvents",
+          "totalGames",
+          "totalGamesInProgress",
+          "totalItems"
+        ]
+      }
+    }
+  },
+  "required": [
+    "copyright",
+    "dates",
+    "totalEvents",
+    "totalGames",
+    "totalGamesInProgress",
+    "totalItems"
+  ],
+  "title": "ScheduleResponse"
+}

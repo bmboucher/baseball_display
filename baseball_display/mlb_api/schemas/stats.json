@@ -1,0 +1,255 @@
+{
+  "$schema": "http://json-schema.org/schema#",
+  "type": "object",
+  "properties": {
+    "copyright": {
+      "type": "string"
+    },
+    "stats": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "object",
+            "properties": {
+              "displayName": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "displayName"
+            ]
+          },
+          "group": {
+            "type": "object",
+            "properties": {
+              "displayName": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "displayName"
+            ]
+          },
+          "exemptions": {
+            "type": "array"
+          },
+          "splits": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "stat": {
+                  "type": "object",
+                  "properties": {
+                    "gamesPlayed": {
+                      "type": "integer"
+                    },
+                    "groundOuts": {
+                      "type": "integer"
+                    },
+                    "airOuts": {
+                      "type": "integer"
+                    },
+                    "runs": {
+                      "type": "integer"
+                    },
+                    "doubles": {
+                      "type": "integer"
+                    },
+                    "triples": {
+                      "type": "integer"
+                    },
+                    "homeRuns": {
+                      "type": "integer"
+                    },
+                    "strikeOuts": {
+                      "type": "integer"
+                    },
+                    "baseOnBalls": {
+                      "type": "integer"
+                    },
+                    "intentionalWalks": {
+                      "type": "integer"
+                    },
+                    "hits": {
+                      "type": "integer"
+                    },
+                    "hitByPitch": {
+                      "type": "integer"
+                    },
+                    "avg": {
+                      "type": "string"
+                    },
+                    "atBats": {
+                      "type": "integer"
+                    },
+                    "obp": {
+                      "type": "string"
+                    },
+                    "slg": {
+                      "type": "string"
+                    },
+                    "ops": {
+                      "type": "string"
+                    },
+                    "caughtStealing": {
+                      "type": "integer"
+                    },
+                    "stolenBases": {
+                      "type": "integer"
+                    },
+                    "stolenBasePercentage": {
+                      "type": "string"
+                    },
+                    "caughtStealingPercentage": {
+                      "type": "string"
+                    },
+                    "groundIntoDoublePlay": {
+                      "type": "integer"
+                    },
+                    "numberOfPitches": {
+                      "type": "integer"
+                    },
+                    "plateAppearances": {
+                      "type": "integer"
+                    },
+                    "totalBases": {
+                      "type": "integer"
+                    },
+                    "rbi": {
+                      "type": "integer"
+                    },
+                    "leftOnBase": {
+                      "type": "integer"
+                    },
+                    "sacBunts": {
+                      "type": "integer"
+                    },
+                    "sacFlies": {
+                      "type": "integer"
+                    },
+                    "babip": {
+                      "type": "string"
+                    },
+                    "groundOutsToAirouts": {
+                      "type": "string"
+                    },
+                    "catchersInterference": {
+                      "type": "integer"
+                    },
+                    "atBatsPerHomeRun": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "airOuts",
+                    "atBats",
+                    "atBatsPerHomeRun",
+                    "avg",
+                    "babip",
+                    "baseOnBalls",
+                    "catchersInterference",
+                    "caughtStealing",
+                    "caughtStealingPercentage",
+                    "doubles",
+                    "gamesPlayed",
+                    "groundIntoDoublePlay",
+                    "groundOuts",
+                    "groundOutsToAirouts",
+                    "hitByPitch",
+                    "hits",
+                    "homeRuns",
+                    "intentionalWalks",
+                    "leftOnBase",
+                    "numberOfPitches",
+                    "obp",
+                    "ops",
+                    "plateAppearances",
+                    "rbi",
+                    "runs",
+                    "sacBunts",
+                    "sacFlies",
+                    "slg",
+                    "stolenBasePercentage",
+                    "stolenBases",
+                    "strikeOuts",
+                    "totalBases",
+                    "triples"
+                  ]
+                },
+                "player": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer"
+                    },
+                    "fullName": {
+                      "type": "string"
+                    },
+                    "link": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "fullName",
+                    "id",
+                    "link"
+                  ]
+                },
+                "sport": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer"
+                    },
+                    "link": {
+                      "type": "string"
+                    },
+                    "abbreviation": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "abbreviation",
+                    "id",
+                    "link"
+                  ]
+                },
+                "gameType": {
+                  "type": "string"
+                },
+                "numTeams": {
+                  "type": "integer"
+                },
+                "numLeagues": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "gameType",
+                "numLeagues",
+                "numTeams",
+                "player",
+                "sport",
+                "stat"
+              ]
+            }
+          }
+        },
+        "required": [
+          "exemptions",
+          "group",
+          "splits",
+          "type"
+        ]
+      }
+    }
+  },
+  "required": [
+    "copyright",
+    "stats"
+  ],
+  "title": "StatsResponse"
+}
