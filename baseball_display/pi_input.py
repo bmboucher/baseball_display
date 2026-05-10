@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import time
 import queue
 import sys
 from dataclasses import dataclass
@@ -50,6 +51,10 @@ class _RotaryEncoder:
         self._emit_key = emit_key
         self._last_state = 0
         self._accumulator = 0
+        self._polling_mode = False
+        self._last_button_pressed = False
+        self._last_button_press_ts = 0.0
+        self._button_debounce_seconds = 0.04
 
     def setup(self) -> None:
         self._gpio.setup(self.config.clk_pin, self._gpio.IN, pull_up_down=self._gpio.PUD_UP)
@@ -57,27 +62,37 @@ class _RotaryEncoder:
         self._gpio.setup(self.config.sw_pin, self._gpio.IN, pull_up_down=self._gpio.PUD_UP)
 
         self._last_state = self._read_state()
+        self._last_button_pressed = self._read_button_pressed()
 
-        self._gpio.add_event_detect(
-            self.config.clk_pin,
-            self._gpio.BOTH,
-            callback=self._on_rotate,
-            bouncetime=1,
-        )
-        self._gpio.add_event_detect(
-            self.config.dt_pin,
-            self._gpio.BOTH,
-            callback=self._on_rotate,
-            bouncetime=1,
-        )
-        self._gpio.add_event_detect(
-            self.config.sw_pin,
-            self._gpio.BOTH,
-            callback=self._on_button,
-            bouncetime=40,
-        )
+        try:
+            self._gpio.add_event_detect(
+                self.config.clk_pin,
+                self._gpio.BOTH,
+                callback=self._on_rotate,
+                bouncetime=1,
+            )
+            self._gpio.add_event_detect(
+                self.config.dt_pin,
+                self._gpio.BOTH,
+                callback=self._on_rotate,
+                bouncetime=1,
+            )
+            self._gpio.add_event_detect(
+                self.config.sw_pin,
+                self._gpio.BOTH,
+                callback=self._on_button,
+                bouncetime=40,
+            )
+        except RuntimeError:
+            self._polling_mode = True
+            logger.warning(
+                "[%s] GPIO edge detection unavailable; using polling fallback",
+                self.config.name,
+            )
 
     def cleanup(self) -> None:
+        if self._polling_mode:
+            return
         for pin in (self.config.clk_pin, self.config.dt_pin, self.config.sw_pin):
             try:
                 self._gpio.remove_event_detect(pin)
@@ -88,6 +103,9 @@ class _RotaryEncoder:
         clk = self._gpio.input(self.config.clk_pin)
         dt = self._gpio.input(self.config.dt_pin)
         return (clk << 1) | dt
+
+    def _read_button_pressed(self) -> bool:
+        return self._gpio.input(self.config.sw_pin) == self._gpio.LOW
 
     def _on_rotate(self, _channel: int) -> None:
         current = self._read_state()
@@ -110,9 +128,34 @@ class _RotaryEncoder:
 
     def _on_button(self, _channel: int) -> None:
         # Pull-up wiring: LOW=pressed, HIGH=released. Emit only on press.
-        pressed = self._gpio.input(self.config.sw_pin) == self._gpio.LOW
+        pressed = self._read_button_pressed()
         if pressed:
             self._emit_key(self.config.button_key)
+
+    def poll(self) -> None:
+        if not self._polling_mode:
+            return
+
+        current_state = self._read_state()
+        delta = _TRANSITIONS.get((self._last_state, current_state), 0)
+        self._last_state = current_state
+
+        if delta != 0:
+            self._accumulator += delta
+            if abs(self._accumulator) >= 4:
+                detents = int(self._accumulator / 4)
+                self._accumulator -= detents * 4
+                key = self.config.cw_key if detents > 0 else self.config.ccw_key
+                for _ in range(abs(detents)):
+                    self._emit_key(key)
+
+        pressed = self._read_button_pressed()
+        now = time.monotonic()
+        if pressed and not self._last_button_pressed:
+            if now - self._last_button_press_ts >= self._button_debounce_seconds:
+                self._emit_key(self.config.button_key)
+                self._last_button_press_ts = now
+        self._last_button_pressed = pressed
 
 
 class PiInputAdapter:
@@ -193,6 +236,9 @@ class PiInputAdapter:
             return None
 
     def poll_pygame_events(self) -> list[pygame.event.Event]:
+        for encoder in self._encoders:
+            encoder.poll()
+
         events: list[pygame.event.Event] = []
         while True:
             try:
