@@ -152,7 +152,7 @@ class PitchDisplay(Component):
         start_y = y0 + (dc.PITCH_DISPLAY_SPEED_AREA_H - total_h) // 2
 
         speed_x = (dc.PITCH_DISPLAY_PITCH_PANEL_W - speed_surf.get_width()) // 2
-        surface.blit(speed_surf, (speed_x, start_y))
+        surface.blit(speed_surf, (speed_x, start_y + dc.PITCH_DISPLAY_SPEED_Y_OFFSET))
 
         mph_x = (dc.PITCH_DISPLAY_PITCH_PANEL_W - mph_surf.get_width()) // 2
         surface.blit(mph_surf, (mph_x, start_y + speed_surf.get_height() + 2))

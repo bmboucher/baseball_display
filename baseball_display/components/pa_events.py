@@ -31,6 +31,22 @@ def _wrap_text(text: str, font: pygame.font.Font, max_w: int) -> list[str]:
     return lines or [""]
 
 
+def _fit_single_line(text: str, font: pygame.font.Font, max_w: int) -> str:
+    """Trim text to a single line that fits within max_w pixels."""
+    if font.size(text)[0] <= max_w:
+        return text
+
+    ellipsis = dc.PA_EVENTS_ELLIPSIS
+    trimmed = text.rstrip()
+    while trimmed:
+        candidate = f"{trimmed}{ellipsis}"
+        if font.size(candidate)[0] <= max_w:
+            return candidate
+        trimmed = trimmed[:-1].rstrip()
+
+    return ellipsis if font.size(ellipsis)[0] <= max_w else ""
+
+
 def _render_content(events: tuple[PAEvent, ...]) -> tuple[Surface, int]:
     """Render all event blocks onto a single tall surface.
 
@@ -70,6 +86,16 @@ def _render_content(events: tuple[PAEvent, ...]) -> tuple[Surface, int]:
             color,
             pygame.Rect(0, y, dc.PA_EVENTS_AREA_W, block_h),
         )
+        right_surf: Surface | None = None
+        max_left_w = inner_w
+        if event.right_text is not None:
+            right_surf = font.render(event.right_text, True, dc.PA_EVENTS_COLOR_TEXT)
+            max_left_w = max(
+                0,
+                inner_w - right_surf.get_width() - dc.PA_EVENTS_RIGHT_TEXT_GAP,
+            )
+            lines = [_fit_single_line(event.text, font, max_left_w)]
+
         for i, line in enumerate(lines):
             text_surf = font.render(line, True, dc.PA_EVENTS_COLOR_TEXT)
             surf.blit(
@@ -80,8 +106,7 @@ def _render_content(events: tuple[PAEvent, ...]) -> tuple[Surface, int]:
                 ),
             )
         # Right-aligned outcome text on the last (only) line of pitch rows
-        if event.right_text is not None:
-            right_surf = font.render(event.right_text, True, dc.PA_EVENTS_COLOR_TEXT)
+        if right_surf is not None:
             rx = dc.PA_EVENTS_AREA_W - dc.PA_EVENTS_PAD - right_surf.get_width()
             surf.blit(right_surf, (rx, y + dc.PA_EVENTS_PAD))
         y += block_h + dc.PA_EVENTS_GAP
