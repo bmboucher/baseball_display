@@ -31,7 +31,10 @@ class PanelSettings(BaseModel):
     spi_bus: int = 0
     spi_device: int = 0
     spi_hz: int = 40_000_000
-    rotation: int = 0
+    # ST7796S is natively portrait (320x480). Our buffers are 480x320 landscape,
+    # so MADCTL.MV (rotation 90 or 270) is required. Use 270 if the image
+    # comes out upside-down.
+    rotation: int = 90
     bgr: bool = True
 
 
