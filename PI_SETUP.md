@@ -38,6 +38,10 @@ Encoders use the Pi's internal pull-ups; wire each encoder's common pin to GND.
 ```bash
 sudo apt update
 sudo apt install -y python3-venv python3-pip git
+# Build deps for rpi-lgpio's underlying lgpio C extension (no prebuilt
+# wheel on PyPI for aarch64). Skipping these makes the later
+# `pip install` fail with "command 'swig' failed: No such file or directory".
+sudo apt install -y swig python3-dev liblgpio-dev
 sudo raspi-config nonint do_spi 0   # enable SPI
 ```
 
