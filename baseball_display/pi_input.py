@@ -194,8 +194,9 @@ class PiInputAdapter:
                 _RotaryEncoder(
                     EncoderConfig(
                         name="X encoder (left)",
-                        clk_pin=22,
-                        dt_pin=23,
+                        # clk/dt swapped vs the wiring labels to reverse direction
+                        clk_pin=23,
+                        dt_pin=22,
                         sw_pin=24,
                         cw_key=pygame.K_RIGHT,
                         ccw_key=pygame.K_LEFT,
@@ -207,8 +208,9 @@ class PiInputAdapter:
                 _RotaryEncoder(
                     EncoderConfig(
                         name="Y encoder (right)",
-                        clk_pin=18,
-                        dt_pin=27,
+                        # clk/dt swapped vs the wiring labels to reverse direction
+                        clk_pin=27,
+                        dt_pin=18,
                         sw_pin=17,
                         cw_key=pygame.K_DOWN,
                         ccw_key=pygame.K_UP,

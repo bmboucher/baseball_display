@@ -36,6 +36,7 @@ logger = logging.getLogger(__name__)
 _PARENT_FPS = 30
 _PARENT_TICK_SECONDS = 1.0 / _PARENT_FPS
 _CONTROL_WINDOW_SIZE = (240, 120)
+_FPS_LOG_INTERVAL_SECS = 10.0
 
 
 def _on_pi() -> bool:
@@ -186,6 +187,13 @@ def _run_pi_panels() -> None:
             "Pi input adapter unavailable; encoders will not register"
         )
 
+    # Per-panel performance counters, flushed every _FPS_LOG_INTERVAL_SECS.
+    perf = {
+        driver.config.name: {"frames": 0, "draw_s": 0.0, "push_s": 0.0}
+        for driver, _, _ in panel_set
+    }
+    perf_window_start = time.monotonic()
+
     logger.info("Starting Pi panel render loop...")
     try:
         while True:
@@ -209,14 +217,42 @@ def _run_pi_panels() -> None:
 
             for driver, screen, surface in panel_set:
                 try:
+                    draw_start = time.monotonic()
                     screen.draw(surface)
+                    push_start = time.monotonic()
                     driver.display(surface)
+                    push_end = time.monotonic()
+                    p = perf[driver.config.name]
+                    p["frames"] += 1
+                    p["draw_s"] += push_start - draw_start
+                    p["push_s"] += push_end - push_start
                 except Exception:
                     logger.exception(
                         "Error rendering/pushing panel %r", driver.config.name
                     )
 
-            elapsed = time.monotonic() - tick_start
+            now = time.monotonic()
+            window = now - perf_window_start
+            if window >= _FPS_LOG_INTERVAL_SECS:
+                for name, p in perf.items():
+                    if p["frames"] == 0:
+                        continue
+                    fps = p["frames"] / window
+                    draw_ms = 1000 * p["draw_s"] / p["frames"]
+                    push_ms = 1000 * p["push_s"] / p["frames"]
+                    logger.info(
+                        "[fps] %-7s %.1f fps  draw=%.1fms  push=%.1fms",
+                        name,
+                        fps,
+                        draw_ms,
+                        push_ms,
+                    )
+                    p["frames"] = 0
+                    p["draw_s"] = 0.0
+                    p["push_s"] = 0.0
+                perf_window_start = now
+
+            elapsed = now - tick_start
             sleep_for = _PARENT_TICK_SECONDS - elapsed
             if sleep_for > 0:
                 time.sleep(sleep_for)
