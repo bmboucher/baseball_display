@@ -82,3 +82,22 @@ class Diamond(ScreenBuffer):
 
     def get_active_components(self, mode: DisplayMode):
         yield self.field
+
+
+SCREEN_NAMES: tuple[str, ...] = ("left", "right", "diamond")
+
+
+def build_screen(name: str) -> ScreenBuffer:
+    if name == "left":
+        screen: ScreenBuffer = LeftJumbotron()
+    elif name == "right":
+        screen = RightJumbotron()
+    elif name == "diamond":
+        screen = Diamond()
+    else:
+        raise ValueError(f"unknown screen name: {name!r}")
+    # In multi-process mode each child owns a 480x320 display, so the panel
+    # offset used to position it inside the single-process 1440x320 layout
+    # must be zeroed out — otherwise the right/diamond blits land off-screen.
+    screen._offset = (0, 0)
+    return screen

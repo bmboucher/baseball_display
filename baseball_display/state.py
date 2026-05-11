@@ -2242,9 +2242,32 @@ _game_data_parsed: Optional[_GameData] = None
 _game_display_data: DisplayData = DisplayData()
 _last_update_time: float = 0.0
 
+# Set whenever _state or _game_display_data is mutated; consumed by the parent
+# loop in multi-process mode to gate snapshot publishing. Starts True so the
+# first publish ships the initial state.
+_dirty: bool = True
+
+
+def mark_dirty() -> None:
+    global _dirty
+    _dirty = True
+
+
+def consume_dirty() -> bool:
+    global _dirty
+    was = _dirty
+    _dirty = False
+    return was
+
 
 def get_state() -> State:
     return _state
+
+
+def set_state(state_obj: State) -> None:
+    """Install a snapshot of State. Used by render children only."""
+    global _state
+    _state = state_obj
 
 
 def get_game_data() -> Optional[GameFeed]:
@@ -2257,6 +2280,12 @@ def get_game_data_parsed() -> Optional[_GameData]:
 
 def get_game_display_data() -> DisplayData:
     return _game_display_data
+
+
+def set_game_display_data(data: DisplayData) -> None:
+    """Install a snapshot of DisplayData. Used by render children only."""
+    global _game_display_data
+    _game_display_data = data
 
 
 def initialize_startup_mode(team_abbr: str = "NYM") -> None:
@@ -2344,10 +2373,12 @@ def update_state() -> None:
         _game_display_data.home_team_id = selected.home_team_id
     else:
         _game_display_data.reset()
+    mark_dirty()
 
 
 def handle_event(event: Event) -> None:
     if event.type == pygame.KEYDOWN:
+        mark_dirty()
         if event.key == pygame.K_RIGHT:
             get_state().handle_scroll_x(1)
         elif event.key == pygame.K_LEFT:

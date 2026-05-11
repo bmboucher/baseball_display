@@ -8,6 +8,8 @@ from pydantic import BaseModel
 logger = logging.getLogger(__name__)
 
 SETTINGS_PATH_ENV = "BASEBALL_DISPLAY_SETTINGS"
+MULTI_PROCESS_ENV = "BASEBALL_DISPLAY_MULTI_PROCESS"
+FBDEV_ENV_PREFIX = "BASEBALL_DISPLAY_FBDEV_"
 _DEFAULT_SETTINGS_PATH = Path("./settings.json")
 
 # Imported here to avoid a circular import with constants.py
@@ -16,6 +18,13 @@ _DEFAULT_REFRESH_RATE = 10
 
 class Settings(BaseModel):
     refresh_rate: int = _DEFAULT_REFRESH_RATE
+    multi_process: bool = False
+    # Per-screen framebuffer devices in multi-process mode, e.g.
+    #   {"left": "/dev/fb1", "right": "/dev/fb2", "diamond": "/dev/fb3"}
+    # Each render child will set SDL_VIDEODRIVER=fbcon + SDL_FBDEV=<path>
+    # before initializing pygame. Env var overrides per screen via
+    # BASEBALL_DISPLAY_FBDEV_LEFT / _RIGHT / _DIAMOND.
+    screen_fbdevs: dict[str, str] = {}
 
 
 _settings: Settings = Settings()
@@ -58,3 +67,22 @@ def get_settings() -> Settings:
 def set_refresh_rate(value: int) -> None:
     _settings.refresh_rate = value
     save_settings()
+
+
+def is_multi_process_enabled() -> bool:
+    """Env var override; falls back to settings.json `multi_process` field."""
+    env = os.environ.get(MULTI_PROCESS_ENV)
+    if env is not None:
+        return env.strip().lower() in {"1", "true", "yes", "on"}
+    return _settings.multi_process
+
+
+def resolve_fbdev(screen_name: str) -> str | None:
+    """Return the framebuffer device path for *screen_name*, or None.
+
+    Env var (e.g. ``BASEBALL_DISPLAY_FBDEV_LEFT``) overrides the setting.
+    """
+    env = os.environ.get(FBDEV_ENV_PREFIX + screen_name.upper())
+    if env:
+        return env
+    return _settings.screen_fbdevs.get(screen_name)

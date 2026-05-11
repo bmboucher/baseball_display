@@ -193,10 +193,10 @@ class PiInputAdapter:
             adapter._encoders = [
                 _RotaryEncoder(
                     EncoderConfig(
-                        name="Device A",
-                        clk_pin=27,
-                        dt_pin=22,
-                        sw_pin=17,
+                        name="X encoder (left)",
+                        clk_pin=22,
+                        dt_pin=23,
+                        sw_pin=24,
                         cw_key=pygame.K_RIGHT,
                         ccw_key=pygame.K_LEFT,
                         button_key=pygame.K_RETURN,
@@ -206,10 +206,10 @@ class PiInputAdapter:
                 ),
                 _RotaryEncoder(
                     EncoderConfig(
-                        name="Device B",
-                        clk_pin=6,
-                        dt_pin=13,
-                        sw_pin=5,
+                        name="Y encoder (right)",
+                        clk_pin=18,
+                        dt_pin=27,
+                        sw_pin=17,
                         cw_key=pygame.K_DOWN,
                         ccw_key=pygame.K_UP,
                         button_key=pygame.K_SPACE,
@@ -223,8 +223,8 @@ class PiInputAdapter:
                 encoder.setup()
 
             logger.info(
-                "Pi GPIO input enabled: Device A -> LEFT/RIGHT + RETURN, "
-                "Device B -> UP/DOWN + SPACE"
+                "Pi GPIO input enabled: X encoder -> LEFT/RIGHT + RETURN, "
+                "Y encoder -> UP/DOWN + SPACE"
             )
             return adapter
         except Exception:
