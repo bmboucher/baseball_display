@@ -24,19 +24,32 @@ Usage:
 
 from __future__ import annotations
 
+import os
 import time
 
 import RPi.GPIO as gpio  # type: ignore[import-not-found]
 
 from baseball_display.st7796s import PanelConfig, ST7796S, open_spi
 
+# Conservative SPI speed for the bench test — bump back to 40 MHz in production
+# once everything works. Many ST7796S boards stop being reliable above ~24 MHz
+# on jumper-wire fanout to multiple panels.
+SPI_HZ = int(os.environ.get("PANEL_TEST_SPI_HZ", "16000000"))
 
-# Wiring per PI_SETUP.md. Override here if your wiring differs.
-PANEL_CONFIGS = [
-    PanelConfig(name="left",    cs_pin=8, led_pin=25, rotation=270),
-    PanelConfig(name="right",   cs_pin=7,             rotation=270),
-    PanelConfig(name="diamond", cs_pin=0,             rotation=270),
+# Set PANEL_TEST_ONLY=<cs_pin> to drive a single panel for clean isolation
+# tests. Default tests all three.
+_ONLY = os.environ.get("PANEL_TEST_ONLY")
+
+_ALL_CONFIGS = [
+    PanelConfig(name="left",    cs_pin=8, led_pin=25, rotation=270, spi_hz=SPI_HZ),
+    PanelConfig(name="right",   cs_pin=7,             rotation=270, spi_hz=SPI_HZ),
+    PanelConfig(name="diamond", cs_pin=0,             rotation=270, spi_hz=SPI_HZ),
 ]
+PANEL_CONFIGS = (
+    [c for c in _ALL_CONFIGS if str(c.cs_pin) == _ONLY] if _ONLY else _ALL_CONFIGS
+)
+if not PANEL_CONFIGS:
+    raise SystemExit(f"PANEL_TEST_ONLY={_ONLY!r} matched no panel")
 
 # RGB565 big-endian color words.
 COLORS: list[tuple[str, bytes]] = [
@@ -54,8 +67,12 @@ def main() -> None:
     gpio.setmode(gpio.BCM)
     gpio.setwarnings(False)
 
-    spi = open_spi(bus=0, device=0, hz=40_000_000)
+    print(f"SPI speed: {SPI_HZ} Hz")
+    spi = open_spi(bus=0, device=0, hz=SPI_HZ)
     panels = [ST7796S(cfg, gpio, spi) for cfg in PANEL_CONFIGS]
+    print(f"Panels under test: {[p.config.name for p in panels]}")
+    print(f"Rows per chunk: {panels[0]._rows_per_chunk}, "
+          f"chunks per frame: {-(-320 // panels[0]._rows_per_chunk)}")
 
     # RST is shared, so one panel issues the pulse and all three reset together.
     panels[0].reset()
