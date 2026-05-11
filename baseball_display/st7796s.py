@@ -21,9 +21,24 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, ContextManager, Optional
 
 logger = logging.getLogger(__name__)
+
+
+_SPIDEV_BUFSIZ_FILE = Path("/sys/module/spidev/parameters/bufsiz")
+_DEFAULT_BUFSIZ = 4096
+
+
+def _read_spidev_bufsiz() -> int:
+    """Read spidev's max transfer size. We must split writes at this boundary
+    because writebytes2 toggles CS between blocks larger than bufsiz, and
+    ST7796S treats that as the end of a RAMWR sequence."""
+    try:
+        return int(_SPIDEV_BUFSIZ_FILE.read_text().strip())
+    except Exception:
+        return _DEFAULT_BUFSIZ
 
 
 @dataclass(frozen=True)
@@ -103,11 +118,17 @@ class ST7796S:
         gpio: Any,
         spi: Any,
         lock: Optional[ContextManager[Any]] = None,
+        spi_bufsiz: Optional[int] = None,
     ) -> None:
         self.config = config
         self._gpio = gpio
         self._spi = spi
         self._lock = lock if lock is not None else _NullLock()
+        self._bufsiz = spi_bufsiz if spi_bufsiz is not None else _read_spidev_bufsiz()
+        # Rows per ioctl, computed so a single writebytes2 call stays within
+        # spidev's bufsiz and therefore doesn't toggle CS mid-transfer.
+        bytes_per_row = config.width * 2
+        self._rows_per_chunk = max(1, self._bufsiz // bytes_per_row)
 
         gpio.setup(config.cs_pin, gpio.OUT, initial=gpio.HIGH)
         gpio.setup(config.dc_pin, gpio.OUT, initial=gpio.LOW)
@@ -202,37 +223,55 @@ class ST7796S:
         self._write_data([(y0 >> 8) & 0xFF, y0 & 0xFF, (y1 >> 8) & 0xFF, y1 & 0xFF])
         self._write_cmd(_CMD_RAMWR)
 
+    def _blit_rows(self, pixel_bytes: bytes) -> None:
+        """Push ``pixel_bytes`` (RGB565-BE, exactly width*height*2 bytes) to
+        the panel, splitting into row-aligned chunks that each fit in one
+        spidev ioctl. Each chunk has its own CASET/RASET/RAMWR so the chip
+        knows exactly where it lands and CS-toggling between ioctls is benign.
+        """
+        w = self.config.width
+        h = self.config.height
+        bytes_per_row = w * 2
+        expected = bytes_per_row * h
+        if len(pixel_bytes) != expected:
+            raise ValueError(
+                f"pixel_bytes len {len(pixel_bytes)} != expected {expected}"
+            )
+
+        rows_per_chunk = self._rows_per_chunk
+        with self._lock:
+            offset = 0
+            row = 0
+            while row < h:
+                chunk_rows = min(rows_per_chunk, h - row)
+                chunk_bytes = chunk_rows * bytes_per_row
+                self._set_window(0, row, w - 1, row + chunk_rows - 1)
+                self._set_dc(True)
+                self._select(True)
+                self._spi.writebytes2(pixel_bytes[offset:offset + chunk_bytes])
+                self._select(False)
+                row += chunk_rows
+                offset += chunk_bytes
+
     def display(self, surface: Any) -> None:
         """Push the entire *surface* (a pygame.Surface) to the panel.
 
         Surface must be ``width × height`` in 24/32-bit pixel format. The
-        method converts to big-endian RGB565 and ships it as one SPI burst.
+        method converts to big-endian RGB565 and ships it via row-aligned
+        SPI chunks (each within spidev's bufsiz).
         """
         rgb565 = _surface_to_rgb565_be(surface)
-        w = self.config.width
-        h = self.config.height
-        with self._lock:
-            self._set_window(0, 0, w - 1, h - 1)
-            self._set_dc(True)
-            self._select(True)
-            self._spi.writebytes2(rgb565)
-            self._select(False)
+        self._blit_rows(rgb565)
 
     def fill(self, rgb565_be: bytes) -> None:
         """Fill the panel with a solid color (used for smoke tests / blank)."""
         w = self.config.width
         h = self.config.height
-        n = w * h
         if len(rgb565_be) == 2:
-            buf = rgb565_be * n
+            buf = rgb565_be * (w * h)
         else:
             buf = rgb565_be
-        with self._lock:
-            self._set_window(0, 0, w - 1, h - 1)
-            self._set_dc(True)
-            self._select(True)
-            self._spi.writebytes2(buf)
-            self._select(False)
+        self._blit_rows(buf)
 
 
 # ---- pygame → RGB565 conversion (numpy fast-path with pure-python fallback) ----
@@ -274,4 +313,11 @@ def open_spi(bus: int = 0, device: int = 0, hz: int = 40_000_000) -> Any:
             "transfer — that's fine as long as no panel is wired to that pin.",
             device,
         )
+    logger.info(
+        "Opened /dev/spidev%d.%d at %d Hz (spidev bufsiz=%d)",
+        bus,
+        device,
+        hz,
+        _read_spidev_bufsiz(),
+    )
     return spi
