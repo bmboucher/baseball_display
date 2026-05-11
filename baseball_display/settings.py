@@ -30,7 +30,10 @@ class PanelSettings(BaseModel):
     led_pin: int | None = None
     spi_bus: int = 0
     spi_device: int = 0
-    spi_hz: int = 40_000_000
+    # 16 MHz is the highest reliable clock on our 3-panel fanout. Above ~20
+    # MHz the shared MOSI line shows bit errors with breadboard / jumper-wire
+    # wiring and the panels render noise instead of solid color.
+    spi_hz: int = 16_000_000
     # ST7796S is natively portrait (320x480). Our buffers are 480x320 landscape,
     # so MADCTL.MV (rotation 90 or 270) is required. Use 270 if the image
     # comes out upside-down.

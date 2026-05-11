@@ -31,9 +31,9 @@ import RPi.GPIO as gpio  # type: ignore[import-not-found]
 
 from baseball_display.st7796s import PanelConfig, ST7796S, open_spi
 
-# Conservative SPI speed for the bench test — bump back to 40 MHz in production
-# once everything works. Many ST7796S boards stop being reliable above ~24 MHz
-# on jumper-wire fanout to multiple panels.
+# Match the application's default. Override via PANEL_TEST_SPI_HZ to
+# binary-search the maximum stable clock for your wiring; the practical
+# ceiling for three panels sharing MOSI on jumper wires is ~16-20 MHz.
 SPI_HZ = int(os.environ.get("PANEL_TEST_SPI_HZ", "16000000"))
 
 # Set PANEL_TEST_ONLY=<cs_pin> to drive a single panel for clean isolation

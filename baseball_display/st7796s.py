@@ -58,7 +58,7 @@ class PanelConfig:
     led_pin: Optional[int] = None  # set only on one panel; None on others
     spi_bus: int = 0
     spi_device: int = 0
-    spi_hz: int = 40_000_000
+    spi_hz: int = 16_000_000
     width: int = 480
     height: int = 320
     rotation: int = 0  # 0/90/180/270 — applied via MADCTL
@@ -297,7 +297,7 @@ def _surface_to_rgb565_be(surface: Any) -> bytes:
     return rgb565.astype(">u2").tobytes()
 
 
-def open_spi(bus: int = 0, device: int = 0, hz: int = 40_000_000) -> Any:
+def open_spi(bus: int = 0, device: int = 0, hz: int = 16_000_000) -> Any:
     """Open the SPI bus with hardware CS disabled (we manage all three CS pins manually)."""
     import spidev  # local import — only available on Pi
 

@@ -103,7 +103,9 @@ def init_panels_on_pi() -> bool:
     gpio.setmode(gpio.BCM)
     gpio.setwarnings(False)
 
-    spi = open_spi(bus=0, device=0, hz=40_000_000)
+    # All panels share one SPI bus; use the first panel's spi_hz to size it.
+    first_ps = next(iter(settings.panels.values()))
+    spi = open_spi(bus=first_ps.spi_bus, device=first_ps.spi_device, hz=first_ps.spi_hz)
     panels: list[ST7796S] = []
     for name, ps in settings.panels.items():
         pc = _panel_config_from_settings(name, ps)

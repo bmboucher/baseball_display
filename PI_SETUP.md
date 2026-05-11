@@ -217,7 +217,7 @@ sudo systemctl restart baseball-display.service
 - Three child processes each render one panel:
   - `SDL_VIDEODRIVER=dummy` → pygame draws to an off-screen 480×320 surface, no window.
   - After each draw, the child converts the surface to big-endian RGB565 with numpy and ships it as one ~300 KiB SPI burst via `spidev.writebytes2`.
-  - A shared `multiprocessing.Lock` serializes SPI bus + shared-GPIO access across the three children (each frame is ~75 µs at 40 MHz, well below 1 % bus utilization at 30 fps × 3 panels).
+  - A shared `multiprocessing.Lock` serializes SPI bus + shared-GPIO access across the three children. Default clock is 16 MHz (the practical ceiling on three-panel breadboard fanout — above ~20 MHz the shared MOSI line shows bit errors and panels render noise). Each 480×320 frame is ~150 µs at 16 MHz, so 30 fps × 3 panels is still <2% bus utilization.
 - The publish/subscribe model from `multiproc.py` is unchanged from the previous fbtft version: parent publishes a pickled snapshot when state changes; children fetch on version bump.
 
 ## 9. Updating the app
