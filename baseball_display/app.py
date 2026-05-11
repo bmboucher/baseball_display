@@ -189,10 +189,17 @@ def _run_pi_panels() -> None:
 
     # Per-panel performance counters, flushed every _FPS_LOG_INTERVAL_SECS.
     perf = {
-        driver.config.name: {"frames": 0, "draw_s": 0.0, "push_s": 0.0}
+        driver.config.name: {
+            "frames": 0,
+            "draw_s": 0.0,
+            "push_s": 0.0,
+            "pushed_pixels": 0,
+            "frames_pushed": 0,
+        }
         for driver, _, _ in panel_set
     }
     perf_window_start = time.monotonic()
+    full_pixels = dc.SCREEN_W * dc.SCREEN_H
 
     logger.info("Starting Pi panel render loop...")
     try:
@@ -226,6 +233,10 @@ def _run_pi_panels() -> None:
                     p["frames"] += 1
                     p["draw_s"] += push_start - draw_start
                     p["push_s"] += push_end - push_start
+                    pushed = driver.last_pushed_pixels
+                    if pushed > 0:
+                        p["pushed_pixels"] += pushed
+                        p["frames_pushed"] += 1
                 except Exception:
                     logger.exception(
                         "Error rendering/pushing panel %r", driver.config.name
@@ -240,16 +251,29 @@ def _run_pi_panels() -> None:
                     fps = p["frames"] / window
                     draw_ms = 1000 * p["draw_s"] / p["frames"]
                     push_ms = 1000 * p["push_s"] / p["frames"]
+                    push_pct = (
+                        100 * p["frames_pushed"] / p["frames"] if p["frames"] else 0.0
+                    )
+                    dirty_pct = (
+                        100 * p["pushed_pixels"] / (p["frames_pushed"] * full_pixels)
+                        if p["frames_pushed"]
+                        else 0.0
+                    )
                     logger.info(
-                        "[fps] %-7s %.1f fps  draw=%.1fms  push=%.1fms",
+                        "[fps] %-7s %.1f fps  draw=%.1fms  push=%.1fms  "
+                        "pushed=%.0f%% frames, avg %.1f%% of panel",
                         name,
                         fps,
                         draw_ms,
                         push_ms,
+                        push_pct,
+                        dirty_pct,
                     )
                     p["frames"] = 0
                     p["draw_s"] = 0.0
                     p["push_s"] = 0.0
+                    p["pushed_pixels"] = 0
+                    p["frames_pushed"] = 0
                 perf_window_start = now
 
             elapsed = now - tick_start

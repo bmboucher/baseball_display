@@ -125,10 +125,14 @@ class ST7796S:
         self._spi = spi
         self._lock = lock if lock is not None else _NullLock()
         self._bufsiz = spi_bufsiz if spi_bufsiz is not None else _read_spidev_bufsiz()
-        # Rows per ioctl, computed so a single writebytes2 call stays within
-        # spidev's bufsiz and therefore doesn't toggle CS mid-transfer.
-        bytes_per_row = config.width * 2
-        self._rows_per_chunk = max(1, self._bufsiz // bytes_per_row)
+        # Last frame's raw RGB888 bytes, used by display() to compute a dirty
+        # bounding box and skip pushing unchanged regions. None = next push
+        # is a full repaint (used after init / fill / first frame).
+        self._last_surface_bytes: Optional[bytes] = None
+        # Tiny counters so callers can observe how often we're actually
+        # touching SPI; flushed by the caller's FPS logger.
+        self.last_dirty_pixels: int = 0
+        self.last_pushed_pixels: int = 0
 
         gpio.setup(config.cs_pin, gpio.OUT, initial=gpio.HIGH)
         gpio.setup(config.dc_pin, gpio.OUT, initial=gpio.LOW)
@@ -223,29 +227,32 @@ class ST7796S:
         self._write_data([(y0 >> 8) & 0xFF, y0 & 0xFF, (y1 >> 8) & 0xFF, y1 & 0xFF])
         self._write_cmd(_CMD_RAMWR)
 
-    def _blit_rows(self, pixel_bytes: bytes) -> None:
-        """Push ``pixel_bytes`` (RGB565-BE, exactly width*height*2 bytes) to
-        the panel, splitting into row-aligned chunks that each fit in one
-        spidev ioctl. Each chunk has its own CASET/RASET/RAMWR so the chip
-        knows exactly where it lands and CS-toggling between ioctls is benign.
+    def _blit_rect(
+        self, x0: int, y0: int, x1: int, y1: int, pixel_bytes: bytes
+    ) -> None:
+        """Push ``pixel_bytes`` (RGB565-BE) to the rectangle
+        ``[x0..x1] × [y0..y1]`` on the panel, splitting into row-aligned
+        chunks that each fit in one spidev ioctl. Each chunk has its own
+        CASET/RASET/RAMWR so CS-toggling between ioctls is benign.
         """
-        w = self.config.width
-        h = self.config.height
-        bytes_per_row = w * 2
-        expected = bytes_per_row * h
+        rect_w = x1 - x0 + 1
+        rect_h = y1 - y0 + 1
+        bytes_per_row = rect_w * 2
+        expected = bytes_per_row * rect_h
         if len(pixel_bytes) != expected:
             raise ValueError(
-                f"pixel_bytes len {len(pixel_bytes)} != expected {expected}"
+                f"pixel_bytes len {len(pixel_bytes)} != expected {expected} "
+                f"for rect {rect_w}x{rect_h}"
             )
 
-        rows_per_chunk = self._rows_per_chunk
+        rows_per_chunk = max(1, self._bufsiz // bytes_per_row)
         with self._lock:
             offset = 0
-            row = 0
-            while row < h:
-                chunk_rows = min(rows_per_chunk, h - row)
+            row = y0
+            while row <= y1:
+                chunk_rows = min(rows_per_chunk, y1 - row + 1)
                 chunk_bytes = chunk_rows * bytes_per_row
-                self._set_window(0, row, w - 1, row + chunk_rows - 1)
+                self._set_window(x0, row, x1, row + chunk_rows - 1)
                 self._set_dc(True)
                 self._select(True)
                 self._spi.writebytes2(pixel_bytes[offset:offset + chunk_bytes])
@@ -254,14 +261,52 @@ class ST7796S:
                 offset += chunk_bytes
 
     def display(self, surface: Any) -> None:
-        """Push the entire *surface* (a pygame.Surface) to the panel.
+        """Push *surface* (a pygame.Surface, ``width × height``) to the panel.
 
-        Surface must be ``width × height`` in 24/32-bit pixel format. The
-        method converts to big-endian RGB565 and ships it via row-aligned
-        SPI chunks (each within spidev's bufsiz).
+        Compares the new surface to the last one pushed and ships only the
+        dirty bounding rectangle. Skips SPI entirely if nothing changed.
         """
-        rgb565 = _surface_to_rgb565_be(surface)
-        self._blit_rows(rgb565)
+        w = self.config.width
+        h = self.config.height
+        try:
+            import pygame  # type: ignore
+        except ImportError as e:
+            raise RuntimeError("ST7796S.display requires pygame on the Pi") from e
+
+        curr_rgb = pygame.image.tobytes(surface, "RGB")
+        prev_rgb = self._last_surface_bytes
+
+        # Fast path 1: first frame (or anything that invalidated tracking).
+        # We have to push the whole panel.
+        if prev_rgb is None or len(prev_rgb) != len(curr_rgb):
+            full_565 = _rgb888_to_rgb565_be(curr_rgb)
+            self._blit_rect(0, 0, w - 1, h - 1, full_565)
+            self._last_surface_bytes = curr_rgb
+            self.last_dirty_pixels = w * h
+            self.last_pushed_pixels = w * h
+            return
+
+        # Fast path 2: identical bytes — bail before any numpy work.
+        if curr_rgb == prev_rgb:
+            self.last_dirty_pixels = 0
+            self.last_pushed_pixels = 0
+            return
+
+        bbox = _dirty_bbox_rgb888(prev_rgb, curr_rgb, w, h)
+        if bbox is None:
+            # Bytes differed but numpy says no pixel actually changed
+            # (shouldn't happen, but defensively skip).
+            self._last_surface_bytes = curr_rgb
+            self.last_dirty_pixels = 0
+            self.last_pushed_pixels = 0
+            return
+
+        x0, y0, x1, y1 = bbox
+        rect_565 = _rgb888_subrect_to_rgb565_be(curr_rgb, x0, y0, x1, y1, w)
+        self._blit_rect(x0, y0, x1, y1, rect_565)
+        self._last_surface_bytes = curr_rgb
+        self.last_dirty_pixels = (x1 - x0 + 1) * (y1 - y0 + 1)
+        self.last_pushed_pixels = self.last_dirty_pixels
 
     def fill(self, rgb565_be: bytes) -> None:
         """Fill the panel with a solid color (used for smoke tests / blank)."""
@@ -271,30 +316,61 @@ class ST7796S:
             buf = rgb565_be * (w * h)
         else:
             buf = rgb565_be
-        self._blit_rows(buf)
+        self._blit_rect(0, 0, w - 1, h - 1, buf)
+        # Force a full repaint on the next display() call — the dirty
+        # tracker has no idea what we just painted.
+        self._last_surface_bytes = None
 
 
-# ---- pygame → RGB565 conversion (numpy fast-path with pure-python fallback) ----
+# ---- RGB888 → RGB565 conversion + dirty-rect tracking (numpy) ----
 
 
-def _surface_to_rgb565_be(surface: Any) -> bytes:
-    """Convert a pygame.Surface to big-endian RGB565 bytes for the panel."""
-    try:
-        import numpy as np  # local import so non-Pi environments don't need it
-        import pygame  # type: ignore
-    except ImportError as e:
-        raise RuntimeError(
-            "ST7796S.display requires numpy and pygame on the Pi"
-        ) from e
+def _rgb888_to_rgb565_be(rgb888_bytes: bytes) -> bytes:
+    """Convert flat RGB888 bytes to big-endian RGB565 bytes for the panel."""
+    import numpy as np  # local import: Pi-only
 
-    raw = pygame.image.tobytes(surface, "RGB")
-    arr = np.frombuffer(raw, dtype=np.uint8).reshape(-1, 3)
+    arr = np.frombuffer(rgb888_bytes, dtype=np.uint8).reshape(-1, 3)
     r = arr[:, 0].astype(np.uint16)
     g = arr[:, 1].astype(np.uint16)
     b = arr[:, 2].astype(np.uint16)
     rgb565 = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
     # ST7796S in 16bpp expects high byte first on the wire.
     return rgb565.astype(">u2").tobytes()
+
+
+def _rgb888_subrect_to_rgb565_be(
+    rgb888_bytes: bytes, x0: int, y0: int, x1: int, y1: int, width: int
+) -> bytes:
+    """Convert a (x0..x1, y0..y1) sub-rectangle of an RGB888 frame to BE RGB565."""
+    import numpy as np
+
+    arr = np.frombuffer(rgb888_bytes, dtype=np.uint8).reshape(-1, width, 3)
+    sub = arr[y0:y1 + 1, x0:x1 + 1, :]
+    r = sub[:, :, 0].astype(np.uint16)
+    g = sub[:, :, 1].astype(np.uint16)
+    b = sub[:, :, 2].astype(np.uint16)
+    rgb565 = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
+    return rgb565.astype(">u2").tobytes()
+
+
+def _dirty_bbox_rgb888(
+    prev_bytes: bytes, curr_bytes: bytes, width: int, height: int
+) -> Optional[tuple[int, int, int, int]]:
+    """Tightest (x0, y0, x1, y1) bounding box of changed pixels; None if identical."""
+    import numpy as np
+
+    prev = np.frombuffer(prev_bytes, dtype=np.uint8).reshape(height, width, 3)
+    curr = np.frombuffer(curr_bytes, dtype=np.uint8).reshape(height, width, 3)
+    diff = (prev != curr).any(axis=2)  # (h, w) bool, any-channel diff per pixel
+    if not diff.any():
+        return None
+    rows = diff.any(axis=1)
+    cols = diff.any(axis=0)
+    y0 = int(np.argmax(rows))
+    y1 = height - 1 - int(np.argmax(rows[::-1]))
+    x0 = int(np.argmax(cols))
+    x1 = width - 1 - int(np.argmax(cols[::-1]))
+    return x0, y0, x1, y1
 
 
 def open_spi(bus: int = 0, device: int = 0, hz: int = 16_000_000) -> Any:
