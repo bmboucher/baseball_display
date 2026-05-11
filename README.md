@@ -1,331 +1,198 @@
 # baseball_display
 
-A pygame-based MLB scoreboard display application. Renders live, finished, and upcoming MLB games across a three-panel "jumbotron" layout (1440×320 px, three 480×320 panels side by side).
+A pygame-based MLB scoreboard for a three-panel "jumbotron." Each panel is
+480×320; combined they show a live scoreboard, batting order / player
+stats, and a field diagram with runner/defender badges.
 
-## Running
+Two render targets are supported from the same codebase:
+
+- **Desktop**: a single 1440×320 pygame window (three panels side by side).
+- **Raspberry Pi**: three physical ST7796S SPI displays, driven from one
+  process via a pure-Python SPI driver. See [`PI_SETUP.md`](PI_SETUP.md)
+  for the full hardware setup (wiring, kernel config, systemd unit,
+  nightly auto-update cron).
+
+## Quick start (desktop)
 
 ```bash
+python3 -m venv .venv
+source .venv/bin/activate    # or .\.venv\Scripts\Activate.ps1 on Windows
+pip install -e .
 python -m baseball_display
 ```
 
-Or, after installing the package:
+The UI font is bundled (Fira Code) so desktop and Pi render identically.
 
-```bash
-baseball-display
+`settings.json` (in the working directory) holds runtime config. Set the
+path via the `BASEBALL_DISPLAY_SETTINGS` env var. Missing file ⇒ defaults.
+
+```jsonc
+{
+  "refresh_rate": 10,          // seconds between MLB API polls
+  "multi_process": false       // see "Multi-process mode" below
+}
 ```
 
-The UI font is bundled with the app and loaded from package assets, so text rendering no longer depends on the host system monospace font. This keeps desktop and Raspberry Pi builds on the same Fira Code font files.
+## Running modes
 
-## Raspberry Pi Encoder Input
+`baseball_display.app.main()` picks one of three render paths at startup:
 
-When running on a Raspberry Pi with `RPi.GPIO` available, the app now also reads two rotary encoders and their push buttons in addition to normal pygame keyboard input.
+| Condition                                       | Path                       | What you see                                     |
+|-------------------------------------------------|----------------------------|--------------------------------------------------|
+| `multi_process=false` (default)                 | `_run_single_process`      | One 1440×320 pygame window                       |
+| `multi_process=true` **and** on a Pi            | `_run_pi_panels`           | Three ST7796S SPI panels (headless, no window)   |
+| `multi_process=true` **and** not on a Pi        | `_run_multi_process`       | A small "control" window + three 480×320 windows |
 
-Wiring uses BCM numbering:
+Detection is `import RPi.GPIO` — succeeds when `rpi-lgpio` is installed
+(Pi only). Override the flag from the shell with
+`BASEBALL_DISPLAY_MULTI_PROCESS=1`.
 
-- Device A switch: GPIO 17
-- Device A encoder: GPIO 27 (CLK), GPIO 22 (DT)
-- Device B switch: GPIO 5
-- Device B encoder: GPIO 6 (CLK), GPIO 13 (DT)
+## Architecture
 
-The hardware inputs are translated to the same `pygame.KEYDOWN` events used for desktop development:
-
-- Device A rotation: left and right arrow keys
-- Device A button press: return
-- Device B rotation: up and down arrow keys
-- Device B button press: space
-
-If Raspberry Pi detection fails or `RPi.GPIO` is unavailable, the app falls back to keyboard-only input without changing desktop behavior.
-
-The `.venv` is at `C:\Repos\baseball_display\.venv`. The project uses Python 3.12 and pygame 2.6.
-
----
-
-## Architecture Overview
-
-### Three-Panel Layout
-
-The window is `FULL_SCREEN_W × FULL_SCREEN_H = 1440 × 320`. Each panel is `SCREEN_W × SCREEN_H = 480 × 320`:
-
-| Panel | Position | Purpose |
-|---|---|---|
-| `LeftJumbotron` | `(0, 0)` | Main game view: menus, game select, scoreboard + count panel |
-| `RightJumbotron` | `(480, 0)` | Currently blank (reserved for future content) |
-| `Diamond` | `(960, 0)` | Currently blank (reserved for field diagram) |
-
-### Main Loop (`app.py`)
-
-The entry point initializes pygame, creates the three `ScreenBuffer` instances, and runs a tight loop:
-
-1. Poll pygame events → dispatch to `state.handle_event()`
-2. For each `ScreenBuffer`, call `draw(fullscreen)` (composites its 480×320 surface onto the main window)
-3. `pygame.display.flip()`
-4. Call `state.update_state()` to fetch new game data in the background (rate-limited by `MIN_TIME_BETWEEN_REQUESTS`)
-
----
-
-## Module Reference
-
-### `constants.py`
-
-Single source of truth for all magic numbers and configuration. Everything is exported with `*` and imported that way throughout the codebase. Key groups:
-
-- **Screen geometry**: `SCREEN_W=480`, `SCREEN_H=320`, panel offsets
-- **Network**: `MLB_SCHEDULE_URL`, `MLB_LOGO_URL`, `REQUEST_TIMEOUT_SECONDS`, `MIN_TIME_BETWEEN_REQUESTS`
-- **Schedule window**: `SCHEDULE_LOOKBACK_DAYS=7`, `SCHEDULE_LOOKAHEAD_DAYS=2`
-- **Menu**: `MAIN_MENU_ITEMS`, `TABS`, `TAB_STATUSES`, `MENU_*` sizing constants
-- **Scoreboard**: `SCOREBOARD_H=148` (`SCOREBOARD_HEADER_HEIGHT + 2 * SCOREBOARD_TEAM_COL_W`), `SCOREBOARD_BSO_PANEL_W=72`, font sizes, colors
-
-When adding new UI, add sizing/color constants here rather than hardcoding them in components.
-
----
-
-### `state.py`
-
-Central application state. All mutable state lives here. Components read state via module-level accessor functions; they never hold references to state objects directly.
-
-#### `DisplayMode` (Enum)
-
-Controls which components are active in each `ScreenBuffer`:
-
-- `MAIN_MENU` — top-level navigation
-- `GAME_SELECT` — tabbed list of games (Finished / Live / Upcoming)
-- `REPLAY` — finished game with inning/appearance scrubbing
-- `LIVE` — live game scoreboard
-- `PREVIEW` — upcoming game info
-
-#### State models (Pydantic `BaseModel`)
-
-| Model | Purpose |
-|---|---|
-| `MainMenuState` | Cursor row for the 4-item main menu |
-| `GameSelectState` | Tab index, scroll offset, selected row, cached game rows |
-| `SelectedGame` | Immutable snapshot of the game chosen in `GameSelectState` |
-| `ReplayState` | Clock time, inning index, appearance index for replay scrubbing |
-| `InningData` | `top: int | None`, `bottom: int | None` — one inning's half-inning values |
-| `DisplayData` | Computed display snapshot: `inning_runs`, `runs/hits/errors` (as `InningData`), `balls`, `strikes`, `outs`, `clock` |
-| `State` | Root model combining all of the above; owns `handle_scroll_x/y` and `handle_click_x/y` dispatch |
-
-#### Key accessors
-
-```python
-get_state() -> State
-get_game_display_data() -> DisplayData
-get_game_data() -> baseball.Game | None
-```
-
-> **Architecture rule — display components must only use `get_game_display_data()`.**
-> Components must never call `get_game_data()` or access raw `baseball.*` objects directly.
-> Code inside `state.py` itself may call `get_game_data()` freely.
-> All derived display data is computed inside `DisplayData.observe_game()` / `observe_appearance()`.
-> If a new piece of data is needed in a component, add a field to `DisplayData` and populate it there.
-
-#### `update_state()`
-
-Called once per frame. If a game is selected and enough time has passed since the last fetch, it calls `baseball.get_game(...)` and invokes `_game_display_data.observe_game(game, replay_state)` to recompute `DisplayData`.
-
-#### `DisplayData.observe_game(game, replay_state)`
-
-Walks the `baseball.Game` inning/appearance tree, replaying pitches and outcomes up to the current `ReplayState` cursor (or to the end for live/finished games). Updates all fields in place: `inning_runs`, `runs`, `hits`, `errors`, `balls`, `strikes`, `outs`, `clock`, `pa_events`, and the active batter/pitcher/inning identifiers.
-
----
-
-### `schedule.py`
-
-Fetches and caches the MLB schedule for a rolling window (`SCHEDULE_LOOKBACK_DAYS` to `SCHEDULE_LOOKAHEAD_DAYS`). Parses the MLB Stats API JSON into `ScheduledGame` Pydantic models.
-
-```python
-get_available_games() -> Iterable[ScheduledGame]
-```
-
-The schedule is fetched lazily on first call and cached in-process.
-
----
-
-### `logos.py`
-
-Downloads team SVG logos from `MLB_LOGO_URL`, converts them to `pygame.Surface` via `svglib` + `reportlab`, and caches by `(team_id, width, height)`. SVG files are disk-cached under `./cache/logos/`.
-
-```python
-get_logo(team_id: int, width: int, height: int) -> pygame.Surface | None
-```
-
-Returns `None` on any error (network failure, parse failure, etc.) so callers must handle the missing-logo case gracefully.
-
----
-
-### `components/base.py`
-
-Defines the three base classes for all UI elements:
-
-#### `Component` (ABC)
-
-```python
-class Component(ABC):
-    def draw(self, surface: Surface) -> None: ...   # required
-    def load(self): ...                             # optional; called on mode switch
-```
-
-`load()` is called once each time the component becomes active (mode changes). Use it for lazy initialization that needs pygame to be running (e.g., font loading that depends on screen state).
-
-#### `ValueComponent(Component)` (ABC)
-
-A caching wrapper for components whose output is a pure function of a single value. Implement two methods:
-
-```python
-def get_value(self) -> Any: ...           # extract the relevant slice of state
-def render_value(self, value: Any) -> Surface: ...  # paint a fresh surface
-```
-
-`draw()` compares `get_value()` to the last seen value. If different, it calls `render_value()` and caches the result. This avoids re-rendering every frame when state hasn't changed.
-
-Constructor takes a `pygame.Rect` that defines where the cached surface is blitted on the parent surface.
-
-#### `ScreenBuffer` (ABC)
-
-Owns a 480×320 `pygame.Surface` and an `(x, y)` offset on the main window.
-
-```python
-def get_active_components(self, mode: DisplayMode) -> Generator[Component, None, None]:
-    ...  # yield components in back-to-front draw order
-```
-
-`draw()` calls each yielded component's `draw()` in order, then blits the internal surface to the main window. Components drawn later appear on top of earlier ones.
-
----
-
-### `screens.py`
-
-Concrete `ScreenBuffer` subclasses. Each screen holds component instances as attributes and yields the right subset based on `DisplayMode`.
-
-```python
-class LeftJumbotron(ScreenBuffer):
-    # MAIN_MENU      → MainMenu
-    # GAME_SELECT    → GameSelect
-    # REPLAY / LIVE  → Scoreboard, then CountDisplay (drawn on top)
-    # else           → BlankScreen
-```
-
-`RightJumbotron` and `Diamond` currently yield `BlankScreen` unconditionally.
-
----
-
-### `components/`
-
-| File | Class | Base | Description |
-|---|---|---|---|
-| `blank.py` | `BlankScreen` | `Component` | Fills the surface with `COLOR_BG` |
-| `main_menu.py` | `MainMenu` | `Component` | 4-item vertical menu, highlights selected row |
-| `game_select.py` | `GameSelect` | `Component` | Tabbed scrollable list of `ScheduledGame`s |
-| `scoreboard.py` | `Scoreboard` | `Component` | Traditional MLB line score; occupies the bottom `SCOREBOARD_H=148` px at full 480 px width |
-| `count_display.py` | `CountDisplay` | `ValueComponent` | Balls/Strikes/Outs panel; occupies the top `SCREEN_H - SCOREBOARD_H = 172` px of the right `SCOREBOARD_BSO_PANEL_W = 72` px column |
-
----
-
-## LeftJumbotron Layout (REPLAY / LIVE mode)
+### Three-panel layout
 
 ```
-┌────────────────────────────────────────┬──────────┐  y=0
-│                                        │  BALLS   │
-│         (nothing / future use)         │ ●●○○     │
-│                                        ├──────────┤
-│                                        │ STRIKES  │
-│                                        │ ●●○      │
-│                                        ├──────────┤
-│                                        │  OUTS    │
-│                                        │ ●○○      │
-├────────────────────────────────────────┴──────────┤  y=172
-│  Scoreboard (full 480px width)                    │
-│  Header row + away row + home row = 148px         │
-└───────────────────────────────────────────────────┘  y=320
-         x=0                             x=408     x=480
+┌──────────────────────────┬──────────────────────────┬──────────────────────────┐
+│      LeftJumbotron       │      RightJumbotron      │         Diamond          │
+│         480×320          │         480×320          │         480×320          │
+└──────────────────────────┴──────────────────────────┴──────────────────────────┘
+   x=0, y=0                   x=480                       x=960
 ```
 
----
+Each panel is a `ScreenBuffer` (in `screens.py`). Components are yielded
+per current `DisplayMode`:
 
-## Input Handling (`state.py: handle_event`)
+| Mode          | LeftJumbotron                                         | RightJumbotron       | Diamond                       |
+|---------------|-------------------------------------------------------|----------------------|-------------------------------|
+| `MAIN_MENU`   | `MainMenu`                                            | (blank)              | field diagram (no overlays)   |
+| `GAME_SELECT` | `GameSelect`                                          | `GamePreview`        | field diagram (no overlays)   |
+| `PREVIEW`     | `GameCountdown`                                       | `GamePreview`        | field diagram (no overlays)   |
+| `LIVE` / `REPLAY` | `Scoreboard`, `PitchDisplay`, `PAEvents`, `CountDisplay`, `ClockDisplay` | `BattingOrder`  | field + runner/defender/pitch overlays |
+| `SETTINGS`    | `SettingsMenu`                                        | (blank)              | field diagram (no overlays)   |
+| `PLAYERS`     | `PlayerSelect`                                        | `PlayerStatsPanel`   | field diagram (no overlays)   |
 
-Input is designed for two push-button rotary encoders on a Raspberry Pi. The pygame `KEYDOWN` events below map directly to those physical controls:
+### Pi single-process render path
 
-| Key | Encoder action | Effect |
-|---|---|---||
-| Arrow Up / Down | Encoder A rotate | `handle_scroll_y(±1)` |
-| Arrow Left / Right | Encoder B rotate | `handle_scroll_x(±1)` |
-| Enter / Return | Encoder A press | `handle_click_x()` — confirms selection, advances mode |
-| Space | Encoder B press | `handle_click_y()` — goes back |
+On the Pi we render to three off-screen pygame Surfaces (with
+`SDL_VIDEODRIVER=dummy`, no real display) and push pixels via SPI:
+
+1. `pygame.init()` once, dummy display.
+2. Reset the panels (shared RST line pulsed once).
+3. Send the ST7796S init sequence to each panel (CSCON unlock + gamma +
+   MADCTL/COLMOD); see [`baseball_display/st7796s.py`](baseball_display/st7796s.py).
+4. Main loop (≤30 FPS): poll encoders, `state.update_state()`, render
+   each `ScreenBuffer` to its 480×320 surface, push pixels through the
+   dirty-rectangle SPI driver.
+
+The ST7796S driver tracks the previously-pushed RGB888 bytes per panel
+and ships only the bounding box of changed pixels (RGB565 BE, chunked
+to `spidev.bufsiz`). For mostly-static panels (scoreboard, batting
+order) this means most frames skip SPI entirely; for the diamond's
+runner animation, only the animation path is pushed.
+
+### Desktop multi-process path
+
+Used only for debugging the IPC + dirty-rect logic on a workstation.
+Parent process owns input + MLB HTTP + State; three spawned children
+each open a visible 480×320 pygame window. The parent publishes a
+pickled `(DisplayData, State)` snapshot to a Manager namespace whenever
+state changes; children pull on a shared version-counter bump. See
+[`baseball_display/multiproc.py`](baseball_display/multiproc.py).
+
+## Input
+
+| Encoder            | Switch     | Rotate                     | Key emitted                |
+|--------------------|------------|----------------------------|----------------------------|
+| X (left)           | GPIO 24    | GPIO 22 (DT) + 23 (CLK)    | LEFT/RIGHT + SPACE (back)  |
+| Y (right)          | GPIO 17    | GPIO 27 (DT) + 18 (CLK)    | UP/DOWN + ENTER (select)   |
+
+`pi_input.PiInputAdapter` injects `pygame.KEYDOWN` events so the desktop
+keyboard path and Pi encoder path use the same `state.handle_event`
+dispatcher.
 
 Mode transitions:
+
 - `MAIN_MENU` → (Enter on "Games") → `GAME_SELECT`
-- `GAME_SELECT` → (Enter) → `REPLAY` / `LIVE` / `PREVIEW` depending on tab
-- `GAME_SELECT` → (Space) → `MAIN_MENU`
-- `REPLAY/LIVE/PREVIEW` → (Space) → `GAME_SELECT`
+- `MAIN_MENU` → (Enter on "Player Stats") → `PLAYERS`
+- `MAIN_MENU` → (Enter on "Settings") → `SETTINGS`
+- `GAME_SELECT` → (Enter) → `REPLAY` / `LIVE` / `PREVIEW` (depending on tab)
+- Any submode → (Space) → back one level
 
----
+## State model
 
-## How to Add a New Component
+All mutable state lives in `state.py` as Pydantic v2 models. Components
+read state only via module-level accessor functions; **components must
+never call `get_game_data()` or touch raw `GameFeed` objects** — all
+display-derived data must live on `DisplayData` and be populated inside
+`DisplayData.observe_game()`. The play-by-play replay engine is the only
+thing that walks the live feed.
 
-### Simple component
+Module-level globals (`state.py`):
 
-1. Create `baseball_display/components/my_component.py`:
+| Global                  | Type                | Set by                          |
+|-------------------------|---------------------|---------------------------------|
+| `_state`                | `State`             | `handle_event` mutations, `update_state` |
+| `_game_data`            | `GameFeed \| None`  | `update_state` (refresh tick)   |
+| `_game_data_parsed`     | `_GameData \| None` | `update_state`                  |
+| `_game_display_data`    | `DisplayData`       | `DisplayData.observe_game`      |
+| `_dirty`                | `bool`              | `handle_event`, `update_state` (consumed in multi-process for snapshot publish) |
 
-```python
-import pygame
-from pygame import Surface
-from baseball_display.components.base import Component
-from baseball_display.constants import *
-from baseball_display.state import get_state
+The multi-process desktop path also uses `set_state` / `set_game_display_data`
+setters to install pickled snapshots in render children — the
+single-process and Pi paths use the in-place mutation directly.
 
-class MyComponent(Component):
-    def draw(self, surface: Surface) -> None:
-        # read state, paint onto surface
-        ...
-```
+## How to add a component
 
-2. Export from `baseball_display/components/__init__.py`:
+1. Create `baseball_display/components/my_component.py`. Subclass
+   `Component` (override `draw(surface)`) or `ValueComponent` (override
+   `get_value()` and `render_value(value)` — the base class caches the
+   rendered surface and re-renders only when the value changes).
+2. Re-export from `baseball_display/components/__init__.py`.
+3. Read state with `get_game_display_data()` / `get_state()`. Pull
+   constants from `display_constants.py`; don't hardcode geometry/colors.
+4. Instantiate inside the relevant `ScreenBuffer` subclass in
+   `screens.py` and yield it from `get_active_components(mode)`.
 
-```python
-from .my_component import MyComponent
-```
-
-3. Add an instance to the appropriate `ScreenBuffer` in `screens.py` and yield it from `get_active_components()`.
-
-### ValueComponent (cached rendering)
-
-Use this when the component output depends on a small, equality-comparable value slice:
-
-```python
-from baseball_display.components.base import ValueComponent
-
-class MyComponent(ValueComponent):
-    def __init__(self) -> None:
-        rect = pygame.Rect(x, y, w, h)   # where to blit on the parent surface
-        super().__init__(rect)
-
-    def get_value(self):
-        dd = get_game_display_data()
-        return dd.some_field   # return only what affects rendering
-
-    def render_value(self, value) -> Surface:
-        surf = Surface((w, h))
-        # paint surf using value
-        return surf
-```
-
-`render_value` is only called when `get_value()` returns something different from the previous frame. The returned surface is reused unchanged on subsequent frames.
-
-### Adding a new display mode
+## How to add a display mode
 
 1. Add a variant to `DisplayMode` in `state.py`.
-2. Add the corresponding state model and wire it into `State`.
+2. Add the corresponding sub-state model and wire it into `State`.
 3. Add `handle_scroll_x/y` and `handle_click_x/y` branches in `State`.
-4. Add an `elif mode == DisplayMode.NEW_MODE:` branch in each relevant `ScreenBuffer.get_active_components()`.
+4. Add an `elif mode == DisplayMode.NEW_MODE:` branch in each relevant
+   `ScreenBuffer.get_active_components()`.
 
----
+## Project layout
+
+```
+baseball_display/
+  app.py              # entrypoint; picks render path
+  state.py            # all state models + DisplayMode + handle_event
+  screens.py          # ScreenBuffer subclasses; build_screen() factory
+  components/         # one file per UI component
+  st7796s.py          # pure-Python ST7796S SPI driver (Pi only)
+  multiproc.py        # desktop multi-process debug renderer
+  pi_input.py         # rotary-encoder → pygame.KEYDOWN adapter
+  statsapi.py         # caching, rate-limited MLB Stats API wrapper
+  mlb_api/            # generated Pydantic models + JSON schemas
+  display_constants.py# geometry, colors, font sizes
+  settings.py         # Settings (refresh_rate, multi_process, panels)
+  logging_setup.py    # shared dictConfig
+scripts/
+  build_schemas.py        # regenerate JSON schemas from sample responses
+  regenerate_models.py    # regenerate Pydantic models from schemas
+  panel_test.py           # Pi bench test: cycle each panel through solid colors
+  update_and_restart.sh   # nightly self-update (called by cron)
+  verify_encoders.py      # standalone encoder diagnostic
+PI_SETUP.md           # full Pi setup (hardware, OS, systemd, cron)
+```
 
 ## Dependencies
 
-| Package | Purpose |
-|---|---|
-| `pygame` 2.6 | Rendering, event loop |
-| `pydantic` | State models with validation |
-| `baseball` | MLB game data (schedule, play-by-play) |
-| `svglib` + `reportlab` | SVG → PNG → `pygame.Surface` for team logos |
+| Package          | Purpose                                          | When required           |
+|------------------|--------------------------------------------------|-------------------------|
+| `pygame`         | Rendering, fonts, event loop                     | Always                  |
+| `pydantic`       | State models, JSON validation                    | Always                  |
+| `MLB-StatsAPI`   | MLB API client                                   | Always                  |
+| `rpi-lgpio`      | `RPi.GPIO`-compatible GPIO on modern Pi kernels  | Pi (`[raspberry-pi]`)   |
+| `spidev`         | SPI bus access                                   | Pi (`[raspberry-pi]`)   |
+| `numpy`          | RGB888 → RGB565 conversion + dirty-rect diff     | Pi (`[raspberry-pi]`)   |

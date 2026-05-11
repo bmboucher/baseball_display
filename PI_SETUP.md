@@ -182,10 +182,10 @@ After=multi-user.target
 
 [Service]
 Type=simple
-User=pi
-WorkingDirectory=/home/pi/baseball_display
+User=juan
+WorkingDirectory=/home/juan/baseball_display
 Environment=BASEBALL_DISPLAY_MULTI_PROCESS=1
-ExecStart=/home/pi/baseball_display/.venv/bin/python -m baseball_display
+ExecStart=/home/juan/baseball_display/.venv/bin/python -m baseball_display
 Restart=on-failure
 RestartSec=3
 StandardOutput=journal

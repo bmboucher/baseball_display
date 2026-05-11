@@ -1,18 +1,18 @@
-"""Multi-process render mode.
+"""Desktop multi-process debug renderer.
 
-Parent process owns input + MLB HTTP + DisplayData / State; three render
-children each drive one physical SPI panel (left/right/diamond). The parent
-publishes a pickled (DisplayData, State) snapshot to a shared
-``multiprocessing.Manager.Namespace`` whenever local state has been mutated;
-children check a shared ``Value('i')`` version counter once per frame (no
-IPC roundtrip) and only re-fetch + unpickle the snapshot when the version
-has advanced.
+Used only when ``BASEBALL_DISPLAY_MULTI_PROCESS=1`` is set and we are
+**not** on a Raspberry Pi. The Pi runs the consolidated single-process
+panel renderer in ``app._run_pi_panels`` instead — rpi-lgpio enforces
+exclusive per-process pin ownership, so multi-process there fights over
+the shared DC/RST/LED GPIOs.
 
-On the Pi, each child renders into an off-screen pygame Surface (with
-SDL_VIDEODRIVER=dummy) and ships pixels directly to its ST7796S panel over
-SPI. Cross-process SPI/GPIO contention is serialized by a shared
-``mp.Lock``. The parent performs the one-time reset + per-panel init
-before spawning children, because RST is shared across all three panels.
+Here on desktop, the parent process owns input + MLB HTTP + DisplayData
+/ State and spawns three pygame children, one per panel-as-window. The
+parent publishes a pickled (DisplayData, State) snapshot to a shared
+``multiprocessing.Manager.Namespace`` whenever local state has been
+mutated; children check a shared ``Value('i')`` version counter once per
+frame (no IPC roundtrip) and only re-fetch + unpickle the snapshot when
+the version has advanced.
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ import baseball_display.display_constants as dc
 from baseball_display import state
 from baseball_display.logging_setup import configure_logging
 from baseball_display.screens import SCREEN_NAMES, build_screen
-from baseball_display.settings import PanelSettings, get_settings, resolve_panel
+from baseball_display.settings import PanelSettings, resolve_panel
 
 logger = logging.getLogger(__name__)
 
@@ -73,53 +73,6 @@ def publish_snapshot(handles: SharedHandles) -> None:
     handles.ns.snapshot = payload
     with handles.version.get_lock():
         handles.version.value += 1
-
-
-def init_panels_on_pi() -> bool:
-    """Reset + init every configured ST7796S panel from the parent.
-
-    Returns True if Pi modules were available and panels were initialized,
-    False on non-Pi platforms (so callers know to skip panel-specific
-    behavior in render children).
-
-    Reset (GPIO5) is wired in parallel to all three panels, so it must
-    only be pulsed once. We do it here, in the parent, before children
-    are spawned — each subsequent panel.init() asserts only that panel's
-    CS so init bytes don't bleed across panels.
-    """
-    try:
-        import RPi.GPIO as gpio  # type: ignore[import-not-found]
-    except Exception as e:
-        logger.info("Pi GPIO/SPI unavailable (%s); panel init skipped", e)
-        return False
-
-    from baseball_display.st7796s import ST7796S, PanelConfig, open_spi
-
-    settings = get_settings()
-    if not settings.panels:
-        logger.warning("No panel configs found in settings; nothing to init")
-        return False
-
-    gpio.setmode(gpio.BCM)
-    gpio.setwarnings(False)
-
-    # All panels share one SPI bus; use the first panel's spi_hz to size it.
-    first_ps = next(iter(settings.panels.values()))
-    spi = open_spi(bus=first_ps.spi_bus, device=first_ps.spi_device, hz=first_ps.spi_hz)
-    panels: list[ST7796S] = []
-    for name, ps in settings.panels.items():
-        pc = _panel_config_from_settings(name, ps)
-        panels.append(ST7796S(pc, gpio, spi))
-
-    if panels:
-        panels[0].reset()  # one shared-RST pulse, drives all three panels
-
-    for p in panels:
-        p.init()
-        logger.info("Initialized panel %r on CS=GPIO%d", p.config.name, p.config.cs_pin)
-
-    spi.close()
-    return True
 
 
 def start_render_children(handles: SharedHandles) -> None:
