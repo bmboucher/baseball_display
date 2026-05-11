@@ -14,7 +14,11 @@ dependencies = [
 
 [project.optional-dependencies]
 raspberry-pi = [
-    "RPi.GPIO",
+    # rpi-lgpio is a drop-in for RPi.GPIO that works on modern Pi OS
+    # kernels (6.x). The legacy RPi.GPIO can't register edge callbacks
+    # on those kernels, which would force our rotary-encoder reads into
+    # a laggy polling fallback.
+    "rpi-lgpio",
     "spidev",
     "numpy",
 ]

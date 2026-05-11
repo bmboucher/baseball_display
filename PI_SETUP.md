@@ -94,7 +94,17 @@ git clone <repo-url> ~/baseball_display
 cd ~/baseball_display
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -e '.[raspberry-pi]'    # pulls RPi.GPIO + spidev + numpy
+pip install -e '.[raspberry-pi]'    # pulls rpi-lgpio + spidev + numpy
+```
+
+If your `.venv` already had the old `RPi.GPIO` package, uninstall it first
+so `rpi-lgpio` can provide the `RPi.GPIO` module instead. On modern Pi OS
+kernels, the legacy `RPi.GPIO` can't register edge-detect callbacks and
+rotary encoders end up using a laggy polling fallback.
+
+```bash
+pip uninstall -y RPi.GPIO
+pip install -e '.[raspberry-pi]'
 ```
 
 Add your user to `gpio` and `spi` so the service can drive pins and the
