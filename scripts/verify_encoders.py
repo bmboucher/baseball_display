@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """Quick rotary encoder + push-button verification tool for Raspberry Pi.
 
-Wiring (BCM numbering):
-- Device A switch: GPIO 17
-- Device A encoder: GPIO 27 (CLK), GPIO 22 (DT)
-- Device B switch: GPIO 5
-- Device B encoder: GPIO 6 (CLK), GPIO 13 (DT)
+Wiring (BCM numbering, matching pi_input.py):
+- X encoder (left)  switch: GPIO 24
+- X encoder (left)  encoder: GPIO 23 (CLK), GPIO 22 (DT)
+- Y encoder (right) switch: GPIO 17
+- Y encoder (right) encoder: GPIO 27 (CLK), GPIO 18 (DT)
+
+(Note: clk_pin/dt_pin are intentionally swapped vs. the physical
+"CLK/DT" wiring labels so the direction matches the app's expectation.)
 
 Usage:
     python3 scripts/verify_encoders.py
@@ -114,8 +117,12 @@ class RotaryEncoder:
 
 def main() -> int:
     encoders = [
-        RotaryEncoder(EncoderConfig("Device A", clk_pin=27, dt_pin=22, sw_pin=17)),
-        RotaryEncoder(EncoderConfig("Device B", clk_pin=6, dt_pin=13, sw_pin=5)),
+        RotaryEncoder(
+            EncoderConfig("X encoder (left)", clk_pin=23, dt_pin=22, sw_pin=24)
+        ),
+        RotaryEncoder(
+            EncoderConfig("Y encoder (right)", clk_pin=27, dt_pin=18, sw_pin=17)
+        ),
     ]
 
     GPIO.setmode(GPIO.BCM)

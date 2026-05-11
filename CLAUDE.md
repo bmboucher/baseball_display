@@ -133,10 +133,7 @@ actual API.
   wiring (shorter leads, etc.), bench with `scripts/panel_test.py` and
   `PANEL_TEST_SPI_HZ` to find the new ceiling.
 - `scripts/verify_encoders.py` is a standalone Pi-only diagnostic — it
-  imports `RPi.GPIO` at module load, so don't run it on Windows. (Its
-  in-file comment block still mentions the OLD encoder pinout from
-  before the wiring change; the code itself was never updated and may
-  need fixing if anyone wants to use it.)
+  imports `RPi.GPIO` at module load, so don't run it on Windows.
 
 ## Auto-update / autostart
 
