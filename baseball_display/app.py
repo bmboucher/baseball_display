@@ -8,6 +8,7 @@ import baseball_display.display_constants as dc
 from baseball_display import state
 from baseball_display.logging_setup import configure_logging
 from baseball_display.multiproc import (
+    init_panels_on_pi,
     init_shared_handles,
     publish_snapshot,
     shutdown_children,
@@ -111,6 +112,12 @@ def _run_multi_process() -> None:
     # Publish initial state so the first frame in each child has data to render.
     publish_snapshot(handles)
     state.consume_dirty()  # clear the dirty flag set by initialization
+
+    # On the Pi: reset + init all three ST7796S panels here, before spawning
+    # children. RST is shared, so it can only be pulsed once; each per-panel
+    # init then runs with only that panel's CS asserted. Returns False on
+    # non-Pi platforms (RPi.GPIO/spidev unavailable) and is a no-op there.
+    init_panels_on_pi()
 
     pi_input = PiInputAdapter.create()
     # On the Pi all input comes from the GPIO encoders, so we skip pygame

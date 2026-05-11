@@ -9,22 +9,45 @@ logger = logging.getLogger(__name__)
 
 SETTINGS_PATH_ENV = "BASEBALL_DISPLAY_SETTINGS"
 MULTI_PROCESS_ENV = "BASEBALL_DISPLAY_MULTI_PROCESS"
-FBDEV_ENV_PREFIX = "BASEBALL_DISPLAY_FBDEV_"
 _DEFAULT_SETTINGS_PATH = Path("./settings.json")
 
 # Imported here to avoid a circular import with constants.py
 _DEFAULT_REFRESH_RATE = 10
 
 
+class PanelSettings(BaseModel):
+    """Per-screen ST7796S panel wiring + bus settings.
+
+    Defaults below match the wiring documented in PI_SETUP.md:
+    SPI0 shared MOSI/MISO/SCLK, CS pins on GPIO8/7/0 (left/right/diamond),
+    shared DC=GPIO1, shared RST=GPIO5, backlight on GPIO25 (declared only
+    on the "left" panel).
+    """
+
+    cs_pin: int
+    dc_pin: int = 1
+    rst_pin: int = 5
+    led_pin: int | None = None
+    spi_bus: int = 0
+    spi_device: int = 0
+    spi_hz: int = 40_000_000
+    rotation: int = 0
+    bgr: bool = True
+
+
+_DEFAULT_PANELS: dict[str, PanelSettings] = {
+    "left":    PanelSettings(cs_pin=8, led_pin=25),
+    "right":   PanelSettings(cs_pin=7),
+    "diamond": PanelSettings(cs_pin=0),
+}
+
+
 class Settings(BaseModel):
     refresh_rate: int = _DEFAULT_REFRESH_RATE
     multi_process: bool = False
-    # Per-screen framebuffer devices in multi-process mode, e.g.
-    #   {"left": "/dev/fb1", "right": "/dev/fb2", "diamond": "/dev/fb3"}
-    # Each render child will set SDL_VIDEODRIVER=fbcon + SDL_FBDEV=<path>
-    # before initializing pygame. Env var overrides per screen via
-    # BASEBALL_DISPLAY_FBDEV_LEFT / _RIGHT / _DIAMOND.
-    screen_fbdevs: dict[str, str] = {}
+    # Per-screen ST7796S panel configs. Override any field in settings.json,
+    # e.g. {"panels": {"left": {"rotation": 180}}}.
+    panels: dict[str, PanelSettings] = _DEFAULT_PANELS
 
 
 _settings: Settings = Settings()
@@ -77,12 +100,6 @@ def is_multi_process_enabled() -> bool:
     return _settings.multi_process
 
 
-def resolve_fbdev(screen_name: str) -> str | None:
-    """Return the framebuffer device path for *screen_name*, or None.
-
-    Env var (e.g. ``BASEBALL_DISPLAY_FBDEV_LEFT``) overrides the setting.
-    """
-    env = os.environ.get(FBDEV_ENV_PREFIX + screen_name.upper())
-    if env:
-        return env
-    return _settings.screen_fbdevs.get(screen_name)
+def resolve_panel(screen_name: str) -> PanelSettings | None:
+    """Return the PanelSettings for *screen_name*, or None if unconfigured."""
+    return _settings.panels.get(screen_name)

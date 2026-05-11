@@ -1,31 +1,37 @@
 # Raspberry Pi Setup — Three SPI Panels (ST7796S)
 
-Tested target: **Raspberry Pi OS Bookworm (64-bit, Lite)** on a Pi 4. The
-display is three ST7796S SPI panels at 480×320 wired to one Pi, plus two
-rotary encoders for input.
+Tested target: **Raspberry Pi OS Bookworm (64-bit, Lite)** on a Pi 4. Three
+ST7796S 480×320 SPI panels share one SPI bus with separate chip selects,
+plus two rotary encoders for input.
+
+This setup uses a **pure-Python ST7796S driver** (see
+`baseball_display/st7796s.py`) rather than the kernel `fbtft` framebuffer.
+Reasons: stock Pi OS kernels don't ship an `fb_st7796s` driver and
+`fb_ili9486` doesn't issue the vendor `CSCON` command ST7796S panels need
+to accept pixel writes. Driving SPI from Python lets us send the correct
+init sequence and sidesteps the kernel-overlay rabbit hole entirely.
 
 ## 1. Hardware pinout (BCM numbering)
 
-| Function              | BCM pin | Notes                                       |
-|-----------------------|--------:|---------------------------------------------|
-| SPI MOSI              | 10      | shared by all three panels (SPI0 MOSI)      |
-| SPI MISO              | 9       | shared (often unused by display)            |
-| SPI SCLK              | 11      | shared (SPI0 SCLK)                          |
-| Panel 1 CS (left)     | 8       | SPI0 CE0                                    |
-| Panel 2 CS (right)    | 7       | SPI0 CE1                                    |
-| Panel 3 CS (diamond)  | 0       | software CS — needs an extra spidev overlay |
-| LCD D/C (LCD_RS)      | 1       | shared by all three panels                  |
-| LCD reset (LCD_RST)   | 5       | shared by all three panels                  |
-| Backlight (LED)       | 25      | drives all three panels; HIGH = on          |
-| X encoder switch      | 24      | rotary press → ENTER (click left)           |
-| X encoder A (CLK)     | 22      | rotation → LEFT/RIGHT                       |
-| X encoder B (DT)      | 23      |                                             |
-| Y encoder switch      | 17      | rotary press → SPACE (click right)          |
-| Y encoder A (CLK)     | 18      | rotation → UP/DOWN                          |
-| Y encoder B (DT)      | 27      |                                             |
+| Function              | BCM pin | Notes                                                |
+|-----------------------|--------:|------------------------------------------------------|
+| SPI MOSI              | 10      | shared by all three panels (SPI0 MOSI)               |
+| SPI MISO              | 9       | shared (often unused by display)                     |
+| SPI SCLK              | 11      | shared (SPI0 SCLK)                                   |
+| Panel 1 CS (left)     | 8       | manually driven by the Python driver                 |
+| Panel 2 CS (right)    | 7       | manually driven by the Python driver                 |
+| Panel 3 CS (diamond)  | 0       | manually driven by the Python driver                 |
+| LCD D/C (LCD_RS)      | 1       | shared by all three panels                           |
+| LCD reset (LCD_RST)   | 5       | shared; the parent pulses it once at startup         |
+| Backlight (LED)       | 25      | shared backlight; driven HIGH at startup             |
+| X encoder switch      | 24      | rotary press → ENTER (click left)                    |
+| X encoder A (CLK)     | 22      | rotation → LEFT/RIGHT                                |
+| X encoder B (DT)      | 23      |                                                      |
+| Y encoder switch      | 17      | rotary press → SPACE (click right)                   |
+| Y encoder A (CLK)     | 18      | rotation → UP/DOWN                                   |
+| Y encoder B (DT)      | 27      |                                                      |
 
-Encoders use the Pi's internal pull-ups (configured in `pi_input.py`); wire
-the common pin to GND.
+Encoders use the Pi's internal pull-ups; wire each encoder's common pin to GND.
 
 ## 2. Base OS prep
 
@@ -35,81 +41,51 @@ sudo apt install -y python3-venv python3-pip git
 sudo raspi-config nonint do_spi 0   # enable SPI
 ```
 
-Disable the HDMI console getty so it doesn't fight us for /dev/fb0:
+Disable the HDMI console getty (cleaner boot, frees the framebuffer):
 
 ```bash
 sudo systemctl disable --now getty@tty1.service
 ```
 
-(Optional, fully headless) disable the HDMI output entirely — saves ~25 mA:
+(Optional, fully headless) disable HDMI output entirely:
 
 ```bash
 sudo sh -c 'echo "hdmi_blanking=2" >> /boot/firmware/config.txt'
 ```
 
-## 3. fbtft kernel driver + three framebuffer devices
+## 3. Enable SPI — that's it
 
-`fbtft` ships with mainline Raspberry Pi OS kernels (no DKMS build needed).
-We expose each panel as its own `/dev/fbN` node by adding device-tree
-overlays to `/boot/firmware/config.txt`.
-
-> The third panel uses `cs=2`, which is **not** a hardware SPI0 CE pin; we
-> enable a software-chip-select overlay so kernel SPI treats GPIO0 as CS2.
-
-Append to `/boot/firmware/config.txt`:
+`/boot/firmware/config.txt` only needs **one** display-related line for
+this setup. **Make sure there are no leftover `dtoverlay=fbtft…`,
+`dtoverlay=piscreen…`, `dtoverlay=mhs35…`, or `dtoverlay=baseball-…`
+lines from earlier troubleshooting** — those would steal the SPI bus or
+wrongly init the panels. The relevant tail of `config.txt` should look
+like:
 
 ```ini
+[all]
+enable_uart=1
+hdmi_blanking=2
+
 dtparam=spi=on
-
-# Re-map SPI0 to use GPIO0 as a software CE2 in addition to CE0/CE1.
-# This makes /dev/spidev0.0, /dev/spidev0.1 and /dev/spidev0.2 available
-# with CS pins on GPIO8, GPIO7 and GPIO0 respectively.
-dtoverlay=spi0-3cs,cs0_pin=8,cs1_pin=7,cs2_pin=0
-
-# Panel 1 (left)  — SPI0 CE0 / GPIO8
-dtoverlay=fbtft,spi0-0,name=fb_st7796s,width=480,height=320,rotate=0,bgr=1,fps=30,speed=32000000,dc_pin=1,reset_pin=5,led_pin=25
-
-# Panel 2 (right) — SPI0 CE1 / GPIO7
-dtoverlay=fbtft,spi0-1,name=fb_st7796s,width=480,height=320,rotate=0,bgr=1,fps=30,speed=32000000,dc_pin=1,reset_pin=5
-
-# Panel 3 (diamond) — SPI0 CE2 / GPIO0
-dtoverlay=fbtft,spi0-2,name=fb_st7796s,width=480,height=320,rotate=0,bgr=1,fps=30,speed=32000000,dc_pin=1,reset_pin=5
 ```
 
-Notes:
-- Only the first overlay declares `led_pin`. The kernel driver toggles that
-  GPIO as backlight; declaring it in all three would try to claim GPIO25 three
-  times.
-- `bgr=1` swaps red/blue if the panel's color order is BGR. Flip if colors
-  look wrong.
-- `speed=32000000` (32 MHz) is conservative; many ST7796S boards run at
-  48–64 MHz. Raise it once everything is working.
-- `rotate=0/90/180/270` if a panel needs to be rotated in hardware.
-
-Reboot, then verify all three framebuffer devices appear:
+Reboot if you changed anything, then verify:
 
 ```bash
-sudo reboot
-# after login:
-ls -l /dev/fb*
-#   crw-rw---- 1 root video 29, 0 ... /dev/fb0   ← HDMI / KMS (ignored)
-#   crw-rw---- 1 root video 29, 1 ... /dev/fb1   ← left
-#   crw-rw---- 1 root video 29, 2 ... /dev/fb2   ← right
-#   crw-rw---- 1 root video 29, 3 ... /dev/fb3   ← diamond
-
-fbset -fb /dev/fb1   # should print 480x320, 16 bpp
+ls /dev/spidev*    # should show /dev/spidev0.0 and /dev/spidev0.1
 ```
 
-Quick sanity check — paint each panel white:
+Raise the spidev kernel module's max transfer size so we can ship 300 KiB
+frames in a single write (default is 4096 bytes):
 
 ```bash
-sudo sh -c 'cat /dev/urandom > /dev/fb1' & sleep 0.3; kill %1
-sudo sh -c 'cat /dev/urandom > /dev/fb2' & sleep 0.3; kill %1
-sudo sh -c 'cat /dev/urandom > /dev/fb3' & sleep 0.3; kill %1
+# Make the change permanent
+echo "options spidev bufsiz=65536" | sudo tee /etc/modprobe.d/spidev.conf
+# Apply now without reboot
+sudo modprobe -r spidev && sudo modprobe spidev
+cat /sys/module/spidev/parameters/bufsiz   # should print 65536
 ```
-
-If any panel stays blank: re-check the wiring for that CS pin and DC/RST,
-verify it shows up in `dmesg | grep fb_st7796s`, and try lowering `speed`.
 
 ## 4. Install the application
 
@@ -118,47 +94,44 @@ git clone <repo-url> ~/baseball_display
 cd ~/baseball_display
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -e '.[raspberry-pi]'    # the extra pulls in RPi.GPIO
+pip install -e '.[raspberry-pi]'    # pulls RPi.GPIO + spidev + numpy
 ```
 
-Add your user to the `video`, `gpio`, and `spi` groups so the service can
-write to `/dev/fbN` and toggle GPIO without root:
+Add your user to `gpio` and `spi` so the service can drive pins and the
+SPI bus without root:
 
 ```bash
-sudo usermod -aG video,gpio,spi $USER
+sudo usermod -aG gpio,spi $USER
 # log out and back in for group changes to take effect
 ```
 
-## 5. Configure baseball_display for multi-process + framebuffer output
+## 5. Configure multi-process mode
 
 Create `~/baseball_display/settings.json`:
 
 ```json
 {
   "refresh_rate": 10,
+  "multi_process": true
+}
+```
+
+The default panel wiring (matching the table above) is baked into
+`settings.py` — you only need to override `panels` in JSON if your wiring
+differs. Example for swapping rotation on the left panel:
+
+```json
+{
   "multi_process": true,
-  "screen_fbdevs": {
-    "left":    "/dev/fb1",
-    "right":   "/dev/fb2",
-    "diamond": "/dev/fb3"
+  "panels": {
+    "left":    { "cs_pin": 8, "led_pin": 25, "rotation": 180 },
+    "right":   { "cs_pin": 7 },
+    "diamond": { "cs_pin": 0 }
   }
 }
 ```
 
-(Each child sets `SDL_VIDEODRIVER=fbcon` + `SDL_FBDEV=<path>` before
-`pygame.init()` — see `multiproc.py:_render_worker`.)
-
-Env-var overrides are also honored, useful for ad-hoc testing without
-editing the JSON:
-
-```bash
-export BASEBALL_DISPLAY_MULTI_PROCESS=1
-export BASEBALL_DISPLAY_FBDEV_LEFT=/dev/fb1
-export BASEBALL_DISPLAY_FBDEV_RIGHT=/dev/fb2
-export BASEBALL_DISPLAY_FBDEV_DIAMOND=/dev/fb3
-```
-
-Run it manually first to verify:
+Test manually:
 
 ```bash
 cd ~/baseball_display
@@ -166,23 +139,23 @@ source .venv/bin/activate
 python -m baseball_display
 ```
 
-You should see logs like:
+Expected log lines:
 
 ```
 Multi-process mode enabled
+Initialized panel 'left'    on CS=GPIO8
+Initialized panel 'right'   on CS=GPIO7
+Initialized panel 'diamond' on CS=GPIO0
 Pi GPIO input enabled: X encoder -> LEFT/RIGHT + RETURN, Y encoder -> UP/DOWN + SPACE
 Pi GPIO input adapter active; parent runs without pygame
-Spawned render child left (pid=…, fbdev=/dev/fb1)
-Spawned render child right (pid=…, fbdev=/dev/fb2)
-Spawned render child diamond (pid=…, fbdev=/dev/fb3)
+Spawned render child left (pid=…, cs_pin=8)
+Spawned render child right (pid=…, cs_pin=7)
+Spawned render child diamond (pid=…, cs_pin=0)
+Starting parent loop...
 ```
 
-…and the three panels light up. Twist the encoders to navigate.
-
-If a panel stays black but logs show "Spawned render child …":
-- It usually means `SDL_VIDEODRIVER=fbcon` isn't supported in your pygame's
-  bundled SDL. Run `python -c "import pygame; pygame.init(); import os; os.environ['SDL_VIDEODRIVER']='fbcon'; print(pygame.display.get_driver())"`.
-- If `fbcon` isn't available, the simplest fix is `sudo apt install python3-pygame` to use the system pygame (which is built against the system SDL with fbcon), and recreate the venv with `--system-site-packages`.
+…and all three panels should light up with the actual scoreboard content.
+Twist the encoders to navigate menus.
 
 ## 6. Auto-start on boot via systemd
 
@@ -201,8 +174,6 @@ Environment=BASEBALL_DISPLAY_MULTI_PROCESS=1
 ExecStart=/home/pi/baseball_display/.venv/bin/python -m baseball_display
 Restart=on-failure
 RestartSec=3
-# fbcon driver needs raw framebuffer access; user is in `video`+`gpio`+`spi`
-# groups so root is not required.
 StandardOutput=journal
 StandardError=journal
 
@@ -220,27 +191,36 @@ sudo systemctl enable --now baseball-display.service
 journalctl -u baseball-display.service -f
 ```
 
-Stop / restart for development:
+Stop / restart during development:
 
 ```bash
 sudo systemctl stop baseball-display.service
 sudo systemctl restart baseball-display.service
 ```
 
-## 7. Troubleshooting cheatsheet
+## 7. Troubleshooting
 
-| Symptom                                        | Likely cause / fix                                                      |
-|------------------------------------------------|--------------------------------------------------------------------------|
-| `/dev/fb1` etc. missing                        | `dmesg \| grep fb_st7796s` for driver errors; recheck `config.txt` overlays |
-| One panel blank, others fine                   | Wrong CS pin or DC/RST not wired; `dmesg` should show timeout / NACK     |
-| Colors swapped (red↔blue)                      | Flip `bgr=1` on the affected overlay                                     |
-| Tearing / flicker                              | Drop `speed=` (32 MHz → 24 MHz) or `fps=` (30 → 20)                      |
-| Encoders backwards                             | Swap `clk_pin` / `dt_pin` for that encoder in `pi_input.py`              |
-| `Permission denied` on `/dev/fb1`              | User not in `video` group; `groups` should list it                       |
-| Service starts before HDMI gone, screen tears  | Add `After=getty@tty1.service` and ensure that getty is disabled         |
-| Render child dies on startup                   | Run manually with `journalctl -u baseball-display -n 200`; usually a missing pygame/SDL driver |
+| Symptom                                       | Likely cause / fix                                                                          |
+|-----------------------------------------------|---------------------------------------------------------------------------------------------|
+| `Permission denied: '/dev/spidev0.0'`         | User not in `spi` group; `groups` should list it. Log out/in after `usermod`.               |
+| All panels blank / white                      | Backlight on GPIO25 not toggled HIGH — wiring issue, or `led_pin` not declared on a panel.  |
+| One panel works, others blank                 | Verify wiring of the broken panel's CS GPIO to the correct line in section 1.               |
+| Panel showing garbled / wrong colors          | Try `"bgr": false` in that panel's JSON, or different `rotation` values (0/90/180/270).     |
+| `spidev.writebytes2: Argument list too long`  | bufsiz still 4096; redo step 3's modprobe edit + reload, confirm `/sys/.../bufsiz` is 65536. |
+| Encoders backwards                            | Swap `clk_pin`/`dt_pin` for that encoder in `pi_input.py`.                                  |
+| Render child dies on startup                  | `journalctl -u baseball-display -n 200` — usually a missing module or wrong settings.json.  |
+| Two children fight for the bus (slow / tear)  | Confirm `spi_lock` is being shared (default). Don't disable it manually.                    |
 
-## 8. Updating the app
+## 8. How rendering works (so debug is easier)
+
+- Parent process owns input + state + MLB HTTP. It does **not** init pygame and does **not** touch SPI in the steady-state loop (it only does the one-time panel reset + init at startup).
+- Three child processes each render one panel:
+  - `SDL_VIDEODRIVER=dummy` → pygame draws to an off-screen 480×320 surface, no window.
+  - After each draw, the child converts the surface to big-endian RGB565 with numpy and ships it as one ~300 KiB SPI burst via `spidev.writebytes2`.
+  - A shared `multiprocessing.Lock` serializes SPI bus + shared-GPIO access across the three children (each frame is ~75 µs at 40 MHz, well below 1 % bus utilization at 30 fps × 3 panels).
+- The publish/subscribe model from `multiproc.py` is unchanged from the previous fbtft version: parent publishes a pickled snapshot when state changes; children fetch on version bump.
+
+## 9. Updating the app
 
 ```bash
 cd ~/baseball_display
