@@ -1,5 +1,6 @@
 import logging
 import multiprocessing as mp
+import os
 import time
 
 import pygame
@@ -8,7 +9,6 @@ import baseball_display.display_constants as dc
 from baseball_display import state
 from baseball_display.logging_setup import configure_logging
 from baseball_display.multiproc import (
-    init_panels_on_pi,
     init_shared_handles,
     publish_snapshot,
     shutdown_children,
@@ -20,8 +20,13 @@ from baseball_display.screens import (
     LeftJumbotron,
     RightJumbotron,
     ScreenBuffer,
+    build_screen,
 )
-from baseball_display.settings import is_multi_process_enabled, load_settings
+from baseball_display.settings import (
+    get_settings,
+    is_multi_process_enabled,
+    load_settings,
+)
 from baseball_display.state import handle_event
 from baseball_display.statsapi import start_prefetch_thread
 
@@ -33,14 +38,38 @@ _PARENT_TICK_SECONDS = 1.0 / _PARENT_FPS
 _CONTROL_WINDOW_SIZE = (240, 120)
 
 
+def _on_pi() -> bool:
+    """True if rpi-lgpio (or legacy RPi.GPIO) is importable.
+
+    Determines whether we drive real SPI panels or fall back to the
+    desktop multi-process pygame-windows path.
+    """
+    try:
+        import RPi.GPIO  # noqa: F401  PLC0415 — runtime import for detection
+        return True
+    except ImportError:
+        return False
+
+
 def main() -> None:
     load_settings()
     start_prefetch_thread()
     state.initialize_startup_mode("NYM")
 
     if is_multi_process_enabled():
-        logger.info("Multi-process mode enabled")
-        _run_multi_process()
+        if _on_pi():
+            # The "multi-process" flag is conceptually "render three panels
+            # separately". On the Pi that means three SPI panels, not three
+            # OS processes — pygame's one-display-per-process limit is moot
+            # here because we render to off-screen surfaces with
+            # SDL_VIDEODRIVER=dummy and ship pixels via spidev. Doing this
+            # in one process also avoids cross-process contention for the
+            # shared DC/RST/LED GPIOs, which rpi-lgpio refuses to allow.
+            logger.info("Multi-process mode enabled → Pi panel render path")
+            _run_pi_panels()
+        else:
+            logger.info("Multi-process mode enabled → desktop windows path")
+            _run_multi_process()
     else:
         logger.info("Single-process mode")
         _run_single_process()
@@ -100,6 +129,113 @@ def _run_single_process() -> None:
         pygame.quit()
 
 
+def _run_pi_panels() -> None:
+    """Single-process renderer for the Pi: own all GPIOs + SPI + panels.
+
+    rpi-lgpio enforces exclusive pin ownership per process, so the previous
+    multi-process design fought over the shared DC/RST/LED pins. Here all
+    three panels live in one process; pygame renders to off-screen 480x320
+    surfaces with SDL_VIDEODRIVER=dummy, and a single render loop pushes
+    each surface to its panel via SPI.
+    """
+    # Imports only on Pi so non-Pi platforms don't need the deps.
+    import RPi.GPIO as gpio  # type: ignore[import-not-found]
+
+    from baseball_display.multiproc import _panel_config_from_settings
+    from baseball_display.st7796s import ST7796S, open_spi
+
+    os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
+    os.environ.setdefault("SDL_NOMOUSE", "1")
+    pygame.init()
+    # pygame.font and the screen buffers need a display surface to be set
+    # up — with the dummy driver this is a 1x1 in-memory surface.
+    pygame.display.set_mode((1, 1))
+
+    settings = get_settings()
+    if not settings.panels:
+        logger.error("multi_process enabled but settings.panels is empty")
+        return
+
+    gpio.setmode(gpio.BCM)
+    gpio.setwarnings(False)
+
+    first_ps = next(iter(settings.panels.values()))
+    spi = open_spi(
+        bus=first_ps.spi_bus, device=first_ps.spi_device, hz=first_ps.spi_hz
+    )
+
+    # One tuple per panel: (driver, ScreenBuffer, off-screen pygame Surface).
+    panel_set: list[tuple[ST7796S, ScreenBuffer, pygame.Surface]] = []
+    for name, ps in settings.panels.items():
+        pc = _panel_config_from_settings(name, ps)
+        driver = ST7796S(pc, gpio, spi)
+        screen = build_screen(name)
+        surface = pygame.Surface((dc.SCREEN_W, dc.SCREEN_H))
+        panel_set.append((driver, screen, surface))
+
+    # RST is shared, so one pulse resets all three; each subsequent init
+    # only affects the panel whose CS is asserted by that ST7796S.init().
+    panel_set[0][0].reset()
+    for driver, _, _ in panel_set:
+        driver.init()
+        logger.info("Initialized panel %r on CS=GPIO%d", driver.config.name, driver.config.cs_pin)
+
+    pi_input = PiInputAdapter.create()
+    if pi_input is None:
+        logger.warning(
+            "Pi input adapter unavailable; encoders will not register"
+        )
+
+    logger.info("Starting Pi panel render loop...")
+    try:
+        while True:
+            tick_start = time.monotonic()
+
+            # Encoders inject pygame.event.Event instances directly via
+            # pi_input; there's no real SDL window so pygame.event.get()
+            # would return nothing useful here.
+            if pi_input is not None:
+                for event in pi_input.poll_pygame_events():
+                    try:
+                        handle_event(event)
+                    except Exception:
+                        logger.exception(f"Error handling event {event}")
+
+            try:
+                state.update_state()
+            except Exception:
+                logger.exception("Error updating state")
+            state.consume_dirty()  # not used in this path (always re-render)
+
+            for driver, screen, surface in panel_set:
+                try:
+                    screen.draw(surface)
+                    driver.display(surface)
+                except Exception:
+                    logger.exception(
+                        "Error rendering/pushing panel %r", driver.config.name
+                    )
+
+            elapsed = time.monotonic() - tick_start
+            sleep_for = _PARENT_TICK_SECONDS - elapsed
+            if sleep_for > 0:
+                time.sleep(sleep_for)
+    except KeyboardInterrupt:
+        logger.info("Exiting...")
+    finally:
+        if pi_input is not None:
+            pi_input.close()
+        try:
+            spi.close()
+        except Exception:
+            pass
+        try:
+            gpio.cleanup()
+        except Exception:
+            pass
+        pygame.quit()
+
+
 def _run_multi_process() -> None:
     # Use spawn everywhere so Windows dev and Linux/Pi prod behave identically.
     try:
@@ -112,12 +248,6 @@ def _run_multi_process() -> None:
     # Publish initial state so the first frame in each child has data to render.
     publish_snapshot(handles)
     state.consume_dirty()  # clear the dirty flag set by initialization
-
-    # On the Pi: reset + init all three ST7796S panels here, before spawning
-    # children. RST is shared, so it can only be pulsed once; each per-panel
-    # init then runs with only that panel's CS asserted. Returns False on
-    # non-Pi platforms (RPi.GPIO/spidev unavailable) and is a no-op there.
-    init_panels_on_pi()
 
     pi_input = PiInputAdapter.create()
     # On the Pi all input comes from the GPIO encoders, so we skip pygame
