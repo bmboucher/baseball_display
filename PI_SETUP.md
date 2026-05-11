@@ -236,8 +236,68 @@ sudo systemctl restart baseball-display.service
 
 ## 9. Updating the app
 
+Manually:
+
 ```bash
 cd ~/baseball_display
 git pull
 sudo systemctl restart baseball-display.service
 ```
+
+### Automatic nightly self-update
+
+`scripts/update_and_restart.sh` pulls `origin/main`, checks whether HEAD
+moved, optionally re-runs `pip install -e .` if `pyproject.toml` changed,
+and restarts the systemd service. Designed to run from cron as root.
+
+```bash
+# Make the script executable
+chmod +x ~/baseball_display/scripts/update_and_restart.sh
+
+# Install the cron job to run daily at 02:00 America/New_York
+sudo tee /etc/cron.d/baseball-display-update > /dev/null <<'EOF'
+# Pull baseball_display from origin and restart the service if HEAD moves.
+# Times are interpreted in the CRON_TZ below; New York handles EST/EDT correctly.
+CRON_TZ=America/New_York
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+0 2 * * * root /home/pi/baseball_display/scripts/update_and_restart.sh >> /var/log/baseball-display-update.log 2>&1
+EOF
+
+# Reload cron's view of /etc/cron.d
+sudo systemctl reload cron
+```
+
+(Replace `/home/pi/baseball_display` with your actual repo path if
+different.)
+
+The script logs to syslog with tag `baseball-display-update`, so you can
+follow what it's been doing with:
+
+```bash
+sudo journalctl -t baseball-display-update -f
+```
+
+Or check the file log:
+
+```bash
+sudo tail -f /var/log/baseball-display-update.log
+```
+
+To test it without waiting until 2 AM:
+
+```bash
+sudo /home/pi/baseball_display/scripts/update_and_restart.sh
+```
+
+Notes:
+
+- The `git pull` runs as the repo's owning user (auto-detected via `stat`)
+  so the working tree doesn't end up with root-owned files. Only the
+  `systemctl restart` call actually needs root.
+- If `git pull` fails (uncommitted local changes, conflicts, network
+  hiccup), the script logs and exits without restarting — the service
+  stays up on the old code.
+- The service's `Restart=on-failure` handles the case where the new code
+  is broken and crashes on boot: systemd will keep retrying.
