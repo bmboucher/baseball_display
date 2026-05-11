@@ -4,7 +4,12 @@ import pygame
 
 import baseball_display.display_constants as dc
 from baseball_display.components.base import Component, make_font
-from baseball_display.state import RunnerAnimationMove, get_game_display_data
+from baseball_display.state import (
+    DisplayMode,
+    RunnerAnimationMove,
+    get_game_display_data,
+    get_state,
+)
 
 
 def _base_waypoints(
@@ -700,6 +705,11 @@ class Field(Component):
 
     def draw(self, surface: pygame.Surface):
         surface.blit(self._base, (0, 0))
+        # Only draw player badges, animations, hit lines, etc. when there's
+        # a game in progress. Outside LIVE/REPLAY the field shows just the
+        # diagram (no leftover badges from a previous game).
+        if get_state().mode not in (DisplayMode.LIVE, DisplayMode.REPLAY):
+            return
         self._overlay.fill(dc.FIELD_OVERLAY_CLEAR_COLOR)
         _draw_highlighted_segments(
             self._overlay,
