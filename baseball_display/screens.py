@@ -79,9 +79,13 @@ class Diamond(ScreenBuffer):
     def __init__(self) -> None:
         super().__init__(*dc.SCREENS_DIAMOND_POS)
         self.field = Field()
+        self.blank_screen = BlankScreen()
 
     def get_active_components(self, mode: DisplayMode):
-        yield self.field
+        if mode in (DisplayMode.REPLAY, DisplayMode.LIVE):
+            yield self.field
+        else:
+            yield self.blank_screen
 
 
 SCREEN_NAMES: tuple[str, ...] = ("left", "right", "diamond")
