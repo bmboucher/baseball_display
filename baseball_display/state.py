@@ -988,6 +988,12 @@ def _effective_game_status(game: ScheduledGame, now: datetime | None = None) -> 
     now = now or datetime.now().astimezone()
     if game.status == "Live" and _inferred_game_end_time(game) <= now:
         return "Final"
+    # Hide stale Preview rows whose nominal end time has already passed —
+    # usually rain-outs / postponements where the schedule entry never moved
+    # off "Preview". Without this, yesterday's never-played games sit in the
+    # Upcoming tab forever.
+    if game.status == "Preview" and _inferred_game_end_time(game) <= now:
+        return "Final"
     return game.status
 
 
