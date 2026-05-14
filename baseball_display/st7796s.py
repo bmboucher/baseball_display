@@ -308,6 +308,17 @@ class ST7796S:
         self.last_dirty_pixels = (x1 - x0 + 1) * (y1 - y0 + 1)
         self.last_pushed_pixels = self.last_dirty_pixels
 
+    def invalidate_dirty_cache(self) -> None:
+        """Force the next ``display()`` to push the full panel.
+
+        The dirty-rect tracker assumes the panel's current contents match
+        ``_last_surface_bytes``. SPI bit errors can desync that assumption,
+        leaving stale pixels visible until something happens to overwrite
+        them. Calling this periodically guarantees those artifacts get
+        repainted within the chosen interval.
+        """
+        self._last_surface_bytes = None
+
     def fill(self, rgb565_be: bytes) -> None:
         """Fill the panel with a solid color (used for smoke tests / blank)."""
         w = self.config.width

@@ -51,6 +51,10 @@ _DEFAULT_PANELS: dict[str, PanelSettings] = {
 class Settings(BaseModel):
     refresh_rate: int = _DEFAULT_REFRESH_RATE
     multi_process: bool = False
+    # Team abbreviation used by initialize_startup_mode() to pick the initial
+    # game/mode at boot (LIVE if that team has a live game, else PREVIEW of
+    # their next upcoming game, else MAIN_MENU).
+    startup_team: str = "NYM"
     # Per-screen ST7796S panel configs. Override any field in settings.json,
     # e.g. {"panels": {"left": {"rotation": 180}}}.
     panels: dict[str, PanelSettings] = _DEFAULT_PANELS

@@ -15,11 +15,19 @@ Two render targets are supported from the same codebase:
 ## Quick start (desktop)
 
 ```bash
+cd baseball_display          # must run from inside the project directory
 python3 -m venv .venv
 source .venv/bin/activate    # or .\.venv\Scripts\Activate.ps1 on Windows
 pip install -e .
 python -m baseball_display
 ```
+
+> Run these (and `python -m baseball_display`) from inside the
+> `baseball_display/` project directory. From any parent directory,
+> Python's import machinery resolves `baseball_display` as a namespace
+> package pointing at the project folder itself and bypasses the
+> editable install, producing a confusing `ImportError` like
+> `cannot import name 'make_endpoint' from 'baseball_display.cache'`.
 
 The UI font is bundled (Fira Code) so desktop and Pi render identically.
 
@@ -29,7 +37,8 @@ path via the `BASEBALL_DISPLAY_SETTINGS` env var. Missing file ⇒ defaults.
 ```jsonc
 {
   "refresh_rate": 10,          // seconds between MLB API polls
-  "multi_process": false       // see "Multi-process mode" below
+  "multi_process": false,      // see "Multi-process mode" below
+  "startup_team": "NYM"        // team abbreviation used to pick the initial game/mode at boot
 }
 ```
 
@@ -178,13 +187,21 @@ baseball_display/
   settings.py         # Settings (refresh_rate, multi_process, panels)
   logging_setup.py    # shared dictConfig
 scripts/
-  build_schemas.py        # regenerate JSON schemas from sample responses
-  regenerate_models.py    # regenerate Pydantic models from schemas
-  panel_test.py           # Pi bench test: cycle each panel through solid colors
-  update_and_restart.sh   # nightly self-update (called by cron)
-  verify_encoders.py      # standalone encoder diagnostic
+  build_schemas.py            # regenerate JSON schemas from sample responses
+  regenerate_models.py        # regenerate Pydantic models from schemas
+  patch_live_game_schema.py   # post-process patches for the live_game schema
+  panel_test.py               # Pi bench test: cycle each panel through solid colors
+  update_and_restart.sh       # nightly self-update (called by cron)
+  verify_encoders.py          # standalone encoder diagnostic
 PI_SETUP.md           # full Pi setup (hardware, OS, systemd, cron)
 ```
+
+## Tests / Development
+
+There is **no automated test suite**. `test_observe.py` and
+`test_pitches.py` at the project root are live-endpoint debug scripts —
+they hit `statsapi.mlb.com` and `print()` results, with no assertions.
+Don't run them under `pytest` and don't count them as a "test pass."
 
 ## Dependencies
 

@@ -37,6 +37,10 @@ _PARENT_FPS = 30
 _PARENT_TICK_SECONDS = 1.0 / _PARENT_FPS
 _CONTROL_WINDOW_SIZE = (240, 120)
 _FPS_LOG_INTERVAL_SECS = 10.0
+# Force a full SPI push of each panel this often, so accumulated wire-level
+# bit errors get repaired even when the dirty-rect tracker thinks the panel
+# is already correct.
+_PANEL_FULL_REFRESH_INTERVAL_S = 5.0
 
 
 def _on_pi() -> bool:
@@ -55,7 +59,7 @@ def _on_pi() -> bool:
 def main() -> None:
     load_settings()
     start_prefetch_thread()
-    state.initialize_startup_mode("NYM")
+    state.initialize_startup_mode(get_settings().startup_team)
 
     if is_multi_process_enabled():
         if _on_pi():
@@ -200,6 +204,9 @@ def _run_pi_panels() -> None:
     }
     perf_window_start = time.monotonic()
     full_pixels = dc.SCREEN_W * dc.SCREEN_H
+    last_full_refresh = {
+        driver.config.name: perf_window_start for driver, _, _ in panel_set
+    }
 
     logger.info("Starting Pi panel render loop...")
     try:
@@ -222,8 +229,15 @@ def _run_pi_panels() -> None:
                 logger.exception("Error updating state")
             state.consume_dirty()  # not used in this path (always re-render)
 
+            refresh_now = time.monotonic()
             for driver, screen, surface in panel_set:
                 try:
+                    if (
+                        refresh_now - last_full_refresh[driver.config.name]
+                        >= _PANEL_FULL_REFRESH_INTERVAL_S
+                    ):
+                        driver.invalidate_dirty_cache()
+                        last_full_refresh[driver.config.name] = refresh_now
                     draw_start = time.monotonic()
                     screen.draw(surface)
                     push_start = time.monotonic()

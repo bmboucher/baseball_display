@@ -49,8 +49,10 @@ all displays are off-screen.
 
 - Python 3.12 on Windows desktop venv (`C:\Repos\baseball_display\.venv`).
 - Python 3.13 on Pi (system venv per `PI_SETUP.md`).
-- `pyproject.toml` says `requires-python = ">=3.8"` but newer features
-  are used freely; the floor isn't enforced in CI.
+- `pyproject.toml` pins `requires-python = ">=3.11"` (matches actual
+  use: `TypeVarTuple`/`Unpack` from PEP 646 in `cache.py`, `X | Y` union
+  syntax throughout). Don't introduce features newer than 3.11 without
+  bumping this floor.
 - The `[raspberry-pi]` extra pulls `rpi-lgpio` (drop-in for `RPi.GPIO`
   on modern Pi kernels) plus `spidev` and `numpy`. Don't try to
   install `[raspberry-pi]` on Windows.
@@ -96,9 +98,10 @@ The `mlb_api/` package is generated code:
 
 Target one schema: `python scripts/regenerate_models.py live_game`.
 
-`baseball_display/mlb_api/README.md` is the openapi-python-client
-template README — ignore it; it doesn't describe this package's
-actual API.
+`baseball_display/mlb_api/README.md` documents the regeneration
+workflow for this generated-models package. (It previously held the
+openapi-python-client template README — that was misleading because
+this package is models-only and does not expose an HTTP client.)
 
 ## Files you'll touch most
 
