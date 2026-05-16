@@ -543,13 +543,126 @@ SETTINGS_MENU_SCREEN_W = SCREEN_W
 SETTINGS_MENU_MENU_TAB_HEIGHT = MENU_TAB_HEIGHT
 SETTINGS_MENU_MENU_ROW_HEIGHT = MENU_ROW_HEIGHT
 SETTINGS_MENU_MENU_FONT_SIZE = MENU_FONT_SIZE
-SETTINGS_MENU_ROWS: list[str] = ["Refresh Rate"]
+SETTINGS_MENU_ROWS: list[str] = ["Refresh Rate", "WiFi Settings"]
 SETTINGS_MENU_REFRESH_RATE_OPTIONS: list[int] = [1, 5, 10, 15, 30, 60]
 SETTINGS_MENU_HEADER_TEXT = "SETTINGS"
 SETTINGS_MENU_TEXT_PAD_X = 8
 SETTINGS_MENU_LEFT_ARROW = "◄"
 SETTINGS_MENU_RIGHT_ARROW = "►"
 SETTINGS_MENU_SECONDS_SUFFIX = "s"
+SETTINGS_MENU_SUBMENU_GLYPH = "›"  # shown on rows that open a subscreen
+
+### Settings Menu — WiFi ###
+
+WIFI_HEADER_TEXT = "WIFI SETTINGS"
+WIFI_SCAN_HEADER_TEXT = "SELECT NETWORK"
+WIFI_KEYBOARD_HEADER_PREFIX = "Enter "
+WIFI_ROW_SSID = "SSID"
+WIFI_ROW_PASSWORD = "Password"
+WIFI_ROW_TEST = "Test Connection"
+WIFI_ROWS: list[str] = [WIFI_ROW_SSID, WIFI_ROW_PASSWORD, WIFI_ROW_TEST]
+
+# Maximum entered length per field. SSID is capped at 32 octets per
+# IEEE 802.11; WPA/WPA2 passphrases at 63 ASCII chars per the spec.
+WIFI_MAX_LEN: dict[str, int] = {
+    WIFI_ROW_SSID: 32,
+    WIFI_ROW_PASSWORD: 63,
+}
+
+WIFI_PASSWORD_MASK_CHAR = "•"
+WIFI_EMPTY_VALUE_TEXT = "(none)"
+WIFI_MANUAL_ENTRY_LABEL = "[Enter manually…]"
+WIFI_SCANNING_TEXT = "Scanning…"
+WIFI_NO_NETWORKS_TEXT = "No networks found"
+WIFI_UNAVAILABLE_TEXT = "WiFi config requires Linux/NetworkManager"
+WIFI_TESTING_TEXT = "Testing…"
+
+WIFI_STATUS_FONT_SIZE = 14
+WIFI_STATUS_PAD_X = 8
+WIFI_STATUS_PAD_BOTTOM = 6
+WIFI_STATUS_SUCCESS_COLOR: tuple[int, int, int] = (60, 180, 60)
+WIFI_STATUS_ERROR_COLOR: tuple[int, int, int] = (220, 90, 90)
+WIFI_STATUS_PENDING_COLOR: tuple[int, int, int] = COLOR_TEXT
+
+WIFI_SCAN_ROW_HEIGHT = 26
+WIFI_SCAN_FONT_SIZE = 16
+WIFI_SCAN_HEADER_FONT_SIZE = MENU_FONT_SIZE
+WIFI_SCAN_VISIBLE_ROWS = (SCREEN_H - MENU_TAB_HEIGHT) // WIFI_SCAN_ROW_HEIGHT
+WIFI_SCAN_SIGNAL_W = 36  # px reserved for "▮▮▮▯" signal bars
+WIFI_SCAN_SECURITY_W = 56  # px reserved for "[WPA2]" tag
+WIFI_SCAN_SIGNAL_FULL_CHAR = "▮"
+WIFI_SCAN_SIGNAL_EMPTY_CHAR = "▯"
+WIFI_SCAN_LOCK_CHAR = "🔒"  # not relied on; fallback below
+WIFI_SCAN_OPEN_TEXT = "open"
+
+# On-screen keyboard layers. Each row is a list of key tokens — a single-char
+# token is rendered as a key that types that character; multi-char tokens
+# (uppercase) are special keys handled by name in KeyboardEditor.handle_click.
+WIFI_KB_KEY_INSERT = "INSERT"  # sentinel for the action triggered on char keys
+WIFI_KB_SPECIAL_SHIFT = "SHIFT"
+WIFI_KB_SPECIAL_SPACE = "SPACE"
+WIFI_KB_SPECIAL_BACK = "BACK"
+WIFI_KB_SPECIAL_OK = "OK"
+
+WIFI_KB_LAYERS: dict[str, list[list[str]]] = {
+    "lower": [
+        list("1234567890"),
+        list("qwertyuiop"),
+        list("asdfghjkl"),
+        list("zxcvbnm-_"),
+        [WIFI_KB_SPECIAL_SHIFT, WIFI_KB_SPECIAL_SPACE, WIFI_KB_SPECIAL_BACK, WIFI_KB_SPECIAL_OK],
+    ],
+    "upper": [
+        list("!@#$%^&*()"),
+        list("QWERTYUIOP"),
+        list("ASDFGHJKL"),
+        list("ZXCVBNM~`"),
+        [WIFI_KB_SPECIAL_SHIFT, WIFI_KB_SPECIAL_SPACE, WIFI_KB_SPECIAL_BACK, WIFI_KB_SPECIAL_OK],
+    ],
+    "sym": [
+        ["+", "=", "-", "_", "{", "}", "[", "]", "|", "\\"],
+        [";", ":", "'", "\"", ",", ".", "<", ">", "/", "?"],
+        [WIFI_KB_SPECIAL_SHIFT, WIFI_KB_SPECIAL_SPACE, WIFI_KB_SPECIAL_BACK, WIFI_KB_SPECIAL_OK],
+    ],
+}
+WIFI_KB_LAYER_ORDER: list[str] = ["lower", "upper", "sym"]
+WIFI_KB_SHIFT_LABELS: dict[str, str] = {"lower": "ABC", "upper": "!@#", "sym": "abc"}
+WIFI_KB_SPECIAL_LABELS: dict[str, str] = {
+    WIFI_KB_SPECIAL_SPACE: "␣",
+    WIFI_KB_SPECIAL_BACK: "⌫",
+    WIFI_KB_SPECIAL_OK: "OK",
+}
+
+# Keyboard layout geometry (in left jumbotron 480×320 frame).
+WIFI_KB_HEADER_FONT_SIZE = 14
+WIFI_KB_VALUE_FONT_SIZE = 18
+WIFI_KB_KEY_FONT_SIZE = 16
+WIFI_KB_HEADER_H = 22       # field-name line at top
+WIFI_KB_VALUE_H = 30        # in-progress value line below header
+WIFI_KB_TOP_PAD = WIFI_KB_HEADER_H + WIFI_KB_VALUE_H  # 52
+WIFI_KB_GRID_PAD_X = 4
+WIFI_KB_GRID_PAD_Y = 6
+WIFI_KB_KEY_GAP = 3
+WIFI_KB_KEY_W = 44          # standard char-key cell width
+WIFI_KB_KEY_H = 44          # standard char-key cell height
+WIFI_KB_KEY_RADIUS = 4
+WIFI_KB_SPECIAL_SHIFT_W = 70
+WIFI_KB_SPECIAL_SPACE_W = 180
+WIFI_KB_SPECIAL_BACK_W = 80
+WIFI_KB_SPECIAL_OK_W = 80
+WIFI_KB_SPECIAL_KEY_WIDTHS: dict[str, int] = {
+    WIFI_KB_SPECIAL_SHIFT: WIFI_KB_SPECIAL_SHIFT_W,
+    WIFI_KB_SPECIAL_SPACE: WIFI_KB_SPECIAL_SPACE_W,
+    WIFI_KB_SPECIAL_BACK: WIFI_KB_SPECIAL_BACK_W,
+    WIFI_KB_SPECIAL_OK: WIFI_KB_SPECIAL_OK_W,
+}
+WIFI_KB_KEY_BG: tuple[int, int, int] = (50, 50, 60)
+WIFI_KB_KEY_BG_HOVER: tuple[int, int, int] = COLOR_ROW_HOVER
+WIFI_KB_KEY_BG_SPECIAL: tuple[int, int, int] = (40, 40, 80)
+WIFI_KB_KEY_BORDER: tuple[int, int, int] = (90, 90, 110)
+WIFI_KB_VALUE_BG: tuple[int, int, int] = (30, 30, 40)
+WIFI_KB_CURSOR_COLOR: tuple[int, int, int] = (255, 220, 0)
+WIFI_KB_MAX_VALUE_CHARS = 32  # truncate displayed value; entry not capped here
 
 ### Game Preview ###
 

@@ -1,3 +1,44 @@
 {
-  "refresh_rate": 15
+  "refresh_rate": 10,
+  "multi_process": false,
+  "startup_team": "NYM",
+  "panels": {
+    "left": {
+      "cs_pin": 8,
+      "dc_pin": 1,
+      "rst_pin": 5,
+      "led_pin": 25,
+      "spi_bus": 0,
+      "spi_device": 0,
+      "spi_hz": 16000000,
+      "rotation": 90,
+      "bgr": true
+    },
+    "right": {
+      "cs_pin": 7,
+      "dc_pin": 1,
+      "rst_pin": 5,
+      "led_pin": null,
+      "spi_bus": 0,
+      "spi_device": 0,
+      "spi_hz": 16000000,
+      "rotation": 90,
+      "bgr": true
+    },
+    "diamond": {
+      "cs_pin": 0,
+      "dc_pin": 1,
+      "rst_pin": 5,
+      "led_pin": null,
+      "spi_bus": 0,
+      "spi_device": 0,
+      "spi_hz": 16000000,
+      "rotation": 90,
+      "bgr": true
+    }
+  },
+  "wifi": {
+    "ssid": "OtherNet",
+    "password": "pw"
+  }
 }

@@ -16,8 +16,9 @@ from baseball_display.components import (
     Scoreboard,
     ScreenBuffer,
     SettingsMenu,
+    SettingsMenuWiFi,
 )
-from baseball_display.state import DisplayMode
+from baseball_display.state import DisplayMode, get_state
 
 
 class LeftJumbotron(ScreenBuffer):
@@ -33,13 +34,17 @@ class LeftJumbotron(ScreenBuffer):
         self.scoreboard = Scoreboard()
         self.game_countdown = GameCountdown()
         self.settings_menu = SettingsMenu()
+        self.settings_menu_wifi = SettingsMenuWiFi()
         self.player_select = PlayerSelect()
 
     def get_active_components(self, mode: DisplayMode):
         if mode == DisplayMode.PLAYERS:
             yield self.player_select
         elif mode == DisplayMode.SETTINGS:
-            yield self.settings_menu
+            if get_state().settings_menu.sub_mode == "wifi":
+                yield self.settings_menu_wifi
+            else:
+                yield self.settings_menu
         elif mode == DisplayMode.MAIN_MENU:
             yield self.main_menu
         elif mode == DisplayMode.GAME_SELECT:

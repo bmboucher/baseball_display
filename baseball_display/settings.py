@@ -3,7 +3,7 @@ import logging
 import os
 from pathlib import Path
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +48,11 @@ _DEFAULT_PANELS: dict[str, PanelSettings] = {
 }
 
 
+class WiFiSettings(BaseModel):
+    ssid: str = ""
+    password: str = ""
+
+
 class Settings(BaseModel):
     refresh_rate: int = _DEFAULT_REFRESH_RATE
     multi_process: bool = False
@@ -58,6 +63,9 @@ class Settings(BaseModel):
     # Per-screen ST7796S panel configs. Override any field in settings.json,
     # e.g. {"panels": {"left": {"rotation": 180}}}.
     panels: dict[str, PanelSettings] = _DEFAULT_PANELS
+    # WiFi credentials, entered via the WiFi Settings subscreen. Applied via
+    # nmcli on Pi; persisted here too so the UI can pre-fill the editor.
+    wifi: WiFiSettings = Field(default_factory=WiFiSettings)
 
 
 _settings: Settings = Settings()
@@ -99,6 +107,11 @@ def get_settings() -> Settings:
 
 def set_refresh_rate(value: int) -> None:
     _settings.refresh_rate = value
+    save_settings()
+
+
+def set_wifi_credentials(ssid: str, password: str) -> None:
+    _settings.wifi = WiFiSettings(ssid=ssid, password=password)
     save_settings()
 
 

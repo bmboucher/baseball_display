@@ -20,7 +20,7 @@ def _row_bg(index: int, is_selected: bool) -> tuple[int, int, int]:
 
 class SettingsMenu(Component):
     def draw(self, surface: pygame.Surface) -> None:
-        _state = state.get_state().settings_menu
+        _state = state.get_state().settings_menu.menu
         surface.fill(dc.SETTINGS_MENU_COLOR_BG)
 
         header_rect = pygame.Rect(
@@ -61,14 +61,18 @@ class SettingsMenu(Component):
             name_surf = font.render(label, True, dc.SETTINGS_MENU_COLOR_TEXT)
             surface.blit(name_surf, (dc.SETTINGS_MENU_TEXT_PAD_X, text_y))
 
-            if is_selected and _state.editing:
-                val = dc.SETTINGS_MENU_REFRESH_RATE_OPTIONS[_state.pending_option_index]
-                value_str = (
-                    f"{dc.SETTINGS_MENU_LEFT_ARROW} {val}{dc.SETTINGS_MENU_SECONDS_SUFFIX} {dc.SETTINGS_MENU_RIGHT_ARROW}"
-                )
+            if label == "Refresh Rate":
+                if is_selected and _state.editing:
+                    val = dc.SETTINGS_MENU_REFRESH_RATE_OPTIONS[_state.pending_option_index]
+                    value_str = (
+                        f"{dc.SETTINGS_MENU_LEFT_ARROW} {val}{dc.SETTINGS_MENU_SECONDS_SUFFIX} {dc.SETTINGS_MENU_RIGHT_ARROW}"
+                    )
+                else:
+                    val = get_settings().refresh_rate
+                    value_str = f"{val}{dc.SETTINGS_MENU_SECONDS_SUFFIX}"
             else:
-                val = get_settings().refresh_rate
-                value_str = f"{val}{dc.SETTINGS_MENU_SECONDS_SUFFIX}"
+                # Submenu row — show a chevron on the right.
+                value_str = dc.SETTINGS_MENU_SUBMENU_GLYPH
 
             val_surf = font.render(value_str, True, dc.SETTINGS_MENU_COLOR_TEXT)
             val_x = (

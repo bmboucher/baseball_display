@@ -1,5 +1,6 @@
 import logging
 import re
+import threading
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -20,6 +21,18 @@ from baseball_display.display_constants import (
     SETTINGS_MENU_ROWS as SETTINGS_ROWS,
     TAB_STATUSES,
     TABS,
+    WIFI_KB_LAYER_ORDER,
+    WIFI_KB_LAYERS,
+    WIFI_KB_SPECIAL_BACK,
+    WIFI_KB_SPECIAL_OK,
+    WIFI_KB_SPECIAL_SHIFT,
+    WIFI_KB_SPECIAL_SPACE,
+    WIFI_MAX_LEN,
+    WIFI_ROW_PASSWORD,
+    WIFI_ROW_SSID,
+    WIFI_ROW_TEST,
+    WIFI_ROWS,
+    WIFI_TESTING_TEXT,
 )
 from baseball_display.mlb_api.models.game import (
     AllPlay,
@@ -27,7 +40,11 @@ from baseball_display.mlb_api.models.game import (
     GameDataPlayer,
     GameFeed,
 )
-from baseball_display.settings import get_settings, set_refresh_rate
+from baseball_display.settings import (
+    get_settings,
+    set_refresh_rate,
+    set_wifi_credentials,
+)
 from baseball_display.statsapi import (
     RosterEntry,
     ScheduledGame,
@@ -929,7 +946,9 @@ class PlayersState(BaseModel):
         self.stats = None
 
 
-class SettingsState(BaseModel):
+class SettingsListState(BaseModel):
+    """State of the top-level Settings menu list (sub_mode == 'list')."""
+
     selected_row: int = 0
     editing: bool = False
     pending_option_index: int = 0
@@ -940,6 +959,10 @@ class SettingsState(BaseModel):
             return REFRESH_RATE_OPTIONS.index(rate)
         except ValueError:
             return 0
+
+    def selected_row_name(self) -> str:
+        idx = max(0, min(self.selected_row, len(SETTINGS_ROWS) - 1))
+        return SETTINGS_ROWS[idx]
 
     def enter_edit(self) -> None:
         self.pending_option_index = self._current_option_index()
@@ -964,6 +987,389 @@ class SettingsState(BaseModel):
                 max(self.pending_option_index + increment, 0),
                 len(REFRESH_RATE_OPTIONS) - 1,
             )
+
+
+class SSIDScanEditor(BaseModel):
+    """SSID picker overlay. Holds the scan result + selection.
+
+    Populated by start_scan() — runs `wifi.scan_ssids()` in a daemon
+    thread so the UI keeps repainting while nmcli waits.
+    """
+
+    networks: list[tuple[str, int, str]] = Field(default_factory=list)
+    selected_index: int = 0
+    scanning: bool = True
+    scrolled: int = 0  # first visible row
+
+    def total_rows(self) -> int:
+        # One extra row for the [Enter manually…] entry.
+        return len(self.networks) + 1
+
+    def is_manual_row(self) -> bool:
+        return self.selected_index == len(self.networks)
+
+    def selected_ssid(self) -> str | None:
+        if self.is_manual_row():
+            return None
+        if 0 <= self.selected_index < len(self.networks):
+            return self.networks[self.selected_index][0]
+        return None
+
+    def handle_scroll_y(self, increment: int) -> None:
+        if self.scanning:
+            return
+        total = self.total_rows()
+        if total == 0:
+            return
+        self.selected_index = min(max(self.selected_index + increment, 0), total - 1)
+
+    def handle_scroll_x(self, increment: int) -> None:
+        # X encoder unused on the scan view; ignore.
+        pass
+
+
+class KeyboardEditor(BaseModel):
+    """On-screen keyboard overlay for SSID / Password entry.
+
+    Selection is a (row, col) into the active layer's grid. ENTER inserts
+    or triggers a special key; SPACE returns to the parent screen without
+    committing.
+    """
+
+    field: str  # WIFI_ROW_SSID or WIFI_ROW_PASSWORD
+    value: str = ""
+    layer: str = "lower"
+    row: int = 1   # default selection on letters row
+    col: int = 0
+
+    def current_grid(self) -> list[list[str]]:
+        return WIFI_KB_LAYERS[self.layer]
+
+    def current_token(self) -> str:
+        grid = self.current_grid()
+        if not grid:
+            return ""
+        self.row = max(0, min(self.row, len(grid) - 1))
+        row = grid[self.row]
+        if not row:
+            return ""
+        self.col = max(0, min(self.col, len(row) - 1))
+        return row[self.col]
+
+    def handle_scroll_x(self, increment: int) -> None:
+        grid = self.current_grid()
+        if not grid:
+            return
+        row = grid[max(0, min(self.row, len(grid) - 1))]
+        if not row:
+            return
+        self.col = (self.col + increment) % len(row)
+
+    def handle_scroll_y(self, increment: int) -> None:
+        grid = self.current_grid()
+        if not grid:
+            return
+        self.row = (self.row + increment) % len(grid)
+        # clamp col to new row width
+        row = grid[self.row]
+        if row:
+            self.col = min(self.col, len(row) - 1)
+        else:
+            self.col = 0
+
+    def cycle_layer(self) -> None:
+        idx = WIFI_KB_LAYER_ORDER.index(self.layer) if self.layer in WIFI_KB_LAYER_ORDER else 0
+        self.layer = WIFI_KB_LAYER_ORDER[(idx + 1) % len(WIFI_KB_LAYER_ORDER)]
+        # Snap selection back into the new grid.
+        grid = self.current_grid()
+        self.row = min(self.row, len(grid) - 1)
+        row_keys = grid[self.row]
+        self.col = min(self.col, max(0, len(row_keys) - 1))
+
+    def _max_len(self) -> int:
+        # Default to 63 (WPA passphrase ceiling) if the field is unknown —
+        # safer than unbounded entry.
+        return WIFI_MAX_LEN.get(self.field, 63)
+
+    def _try_append(self, ch: str) -> str:
+        if len(self.value) >= self._max_len():
+            return "limit"
+        self.value += ch
+        return "insert"
+
+    def press(self) -> str:
+        """Apply the currently selected key. Returns one of:
+        - "insert"  : a printable char was appended to self.value
+        - "back"    : backspace was applied
+        - "shift"   : layer cycled
+        - "limit"   : input is at the field's max length; key ignored
+        - "commit"  : OK pressed — caller should commit self.value to the field
+        """
+        token = self.current_token()
+        if token == WIFI_KB_SPECIAL_SHIFT:
+            self.cycle_layer()
+            return "shift"
+        if token == WIFI_KB_SPECIAL_BACK:
+            self.value = self.value[:-1]
+            return "back"
+        if token == WIFI_KB_SPECIAL_SPACE:
+            return self._try_append(" ")
+        if token == WIFI_KB_SPECIAL_OK:
+            return "commit"
+        if len(token) == 1:
+            return self._try_append(token)
+        return "shift"
+
+
+class SettingsWiFiState(BaseModel):
+    """State of the WiFi Settings subscreen (sub_mode == 'wifi')."""
+
+    selected_row: int = 0
+    pending_ssid: str = ""
+    pending_password: str = ""
+    test_status: str = ""  # "" | WIFI_TESTING_TEXT | "Connected: …" | "Failed: …"
+    test_status_color: str = "pending"  # "pending" | "success" | "error"
+    editor_kind: str = "none"  # "none" | "scan" | "keyboard"
+    # last_applied_* track what we last successfully pushed to nmcli, so
+    # back-out can skip a redundant apply when nothing has changed since
+    # a successful Test Connection.
+    last_applied_ssid: str = ""
+    last_applied_password: str = ""
+    last_apply_ok: bool = False
+    scan: SSIDScanEditor | None = None
+    keyboard: KeyboardEditor | None = None
+
+    def reset_from_settings(self) -> None:
+        """Populate pending_* from saved settings on entry."""
+        wifi = get_settings().wifi
+        self.pending_ssid = wifi.ssid
+        self.pending_password = wifi.password
+        self.selected_row = 0
+        self.test_status = ""
+        self.test_status_color = "pending"
+        self.editor_kind = "none"
+        self.last_applied_ssid = ""
+        self.last_applied_password = ""
+        self.last_apply_ok = False
+        self.scan = None
+        self.keyboard = None
+
+    def selected_row_name(self) -> str:
+        idx = max(0, min(self.selected_row, len(WIFI_ROWS) - 1))
+        return WIFI_ROWS[idx]
+
+    # ---- editor lifecycle ----
+
+    def open_scan(self) -> None:
+        self.scan = SSIDScanEditor(scanning=True)
+        self.editor_kind = "scan"
+        # Pass the editor instance so the worker can verify it hasn't been
+        # replaced (user navigated away and back) before writing results.
+        _start_wifi_scan_thread(self.scan)
+
+    def open_keyboard(self, field: str, initial_value: str) -> None:
+        self.keyboard = KeyboardEditor(field=field, value=initial_value)
+        self.editor_kind = "keyboard"
+
+    def close_editor(self) -> None:
+        self.editor_kind = "none"
+        self.scan = None
+        self.keyboard = None
+
+    def commit_keyboard(self) -> None:
+        if self.keyboard is None:
+            return
+        if self.keyboard.field == WIFI_ROW_SSID:
+            self.pending_ssid = self.keyboard.value
+        elif self.keyboard.field == WIFI_ROW_PASSWORD:
+            self.pending_password = self.keyboard.value
+        self.close_editor()
+
+    def commit_scan_selection(self) -> None:
+        """Called when ENTER is pressed on the SSID list."""
+        if self.scan is None or self.scan.scanning:
+            return
+        if self.scan.is_manual_row():
+            # Switch to keyboard for manual entry.
+            self.open_keyboard(WIFI_ROW_SSID, self.pending_ssid)
+            return
+        ssid = self.scan.selected_ssid()
+        if ssid is not None:
+            self.pending_ssid = ssid
+        self.close_editor()
+
+    # ---- event dispatch ----
+
+    def handle_scroll_x(self, increment: int) -> None:
+        if self.editor_kind == "keyboard" and self.keyboard is not None:
+            self.keyboard.handle_scroll_x(increment)
+        elif self.editor_kind == "scan" and self.scan is not None:
+            self.scan.handle_scroll_x(increment)
+
+    def handle_scroll_y(self, increment: int) -> None:
+        if self.editor_kind == "keyboard" and self.keyboard is not None:
+            self.keyboard.handle_scroll_y(increment)
+        elif self.editor_kind == "scan" and self.scan is not None:
+            self.scan.handle_scroll_y(increment)
+        else:
+            self.selected_row = min(
+                max(self.selected_row + increment, 0), len(WIFI_ROWS) - 1
+            )
+
+    def handle_click_x(self) -> None:
+        """ENTER. Behavior depends on which view is active."""
+        if self.editor_kind == "keyboard" and self.keyboard is not None:
+            outcome = self.keyboard.press()
+            if outcome == "commit":
+                self.commit_keyboard()
+            return
+        if self.editor_kind == "scan":
+            self.commit_scan_selection()
+            return
+        # Summary view: act on the selected row.
+        row_name = self.selected_row_name()
+        if row_name == WIFI_ROW_SSID:
+            self.open_scan()
+        elif row_name == WIFI_ROW_PASSWORD:
+            self.open_keyboard(WIFI_ROW_PASSWORD, self.pending_password)
+        elif row_name == WIFI_ROW_TEST:
+            _start_wifi_test_thread(self.pending_ssid, self.pending_password)
+
+    def handle_click_y(self) -> bool:
+        """SPACE. Returns True if this state consumed the event, False
+        if the caller should exit the SETTINGS sub_mode entirely.
+        """
+        if self.editor_kind != "none":
+            self.close_editor()
+            return True
+        # Back out of WiFi sub-mode → apply + persist before returning.
+        _commit_wifi_credentials_on_exit(self.pending_ssid, self.pending_password)
+        return False
+
+
+class SettingsState(BaseModel):
+    sub_mode: str = "list"  # "list" | "wifi"
+    menu: SettingsListState = Field(default_factory=SettingsListState)
+    wifi: SettingsWiFiState = Field(default_factory=SettingsWiFiState)
+
+    def handle_scroll_x(self, increment: int) -> None:
+        if self.sub_mode == "list":
+            self.menu.handle_scroll_x(increment)
+        elif self.sub_mode == "wifi":
+            self.wifi.handle_scroll_x(increment)
+
+    def handle_scroll_y(self, increment: int) -> None:
+        if self.sub_mode == "list":
+            self.menu.handle_scroll_y(increment)
+        elif self.sub_mode == "wifi":
+            self.wifi.handle_scroll_y(increment)
+
+    def handle_click_x(self) -> None:
+        if self.sub_mode == "list":
+            if self.menu.editing:
+                self.menu.confirm_edit()
+                return
+            row_name = self.menu.selected_row_name()
+            if row_name == "Refresh Rate":
+                self.menu.enter_edit()
+            elif row_name == "WiFi Settings":
+                self.sub_mode = "wifi"
+                self.wifi.reset_from_settings()
+        elif self.sub_mode == "wifi":
+            self.wifi.handle_click_x()
+
+    def handle_click_y(self) -> bool:
+        """SPACE. Returns True if consumed (stay in SETTINGS mode), False
+        if the caller should pop SETTINGS and return to MAIN_MENU.
+        """
+        if self.sub_mode == "list":
+            if self.menu.editing:
+                self.menu.cancel_edit()
+                return True
+            return False
+        if self.sub_mode == "wifi":
+            consumed = self.wifi.handle_click_y()
+            if not consumed:
+                self.sub_mode = "list"
+                return True  # stay in SETTINGS, just pop the sub-mode
+            return True
+        return False
+
+
+# ---------------------------------------------------------------------------
+# WiFi worker threads.
+#
+# Module-level so the SettingsWiFiState pydantic model stays JSON-clean
+# (threads / Futures don't serialize, and SettingsWiFiState gets snapshot-
+# published in multi-process mode). The threads mutate
+# get_state().settings_menu.wifi directly and call mark_dirty() so the
+# render loop picks up the new status.
+# ---------------------------------------------------------------------------
+
+
+def _start_wifi_scan_thread(target: SSIDScanEditor) -> None:
+    def run() -> None:
+        from baseball_display import wifi as wifi_mod  # lazy: avoids subprocess at import
+        results = wifi_mod.scan_ssids()
+        current = get_state().settings_menu.wifi.scan
+        # Identity check: bail if the user closed the scan (or opened a new
+        # one) while this thread was waiting on nmcli.
+        if current is not target:
+            return
+        target.networks = results
+        target.scanning = False
+        target.selected_index = 0
+        mark_dirty()
+
+    threading.Thread(target=run, daemon=True, name="wifi-scan").start()
+
+
+def _start_wifi_test_thread(ssid: str, password: str) -> None:
+    wifi_state = get_state().settings_menu.wifi
+    wifi_state.test_status = WIFI_TESTING_TEXT
+    wifi_state.test_status_color = "pending"
+    mark_dirty()
+
+    def run() -> None:
+        from baseball_display import wifi as wifi_mod
+        ok, msg = wifi_mod.connect(ssid, password)
+        target = get_state().settings_menu.wifi
+        target.test_status = msg
+        target.test_status_color = "success" if ok else "error"
+        if ok:
+            target.last_applied_ssid = ssid
+            target.last_applied_password = password
+            target.last_apply_ok = True
+        mark_dirty()
+
+    threading.Thread(target=run, daemon=True, name="wifi-test").start()
+
+
+def _commit_wifi_credentials_on_exit(ssid: str, password: str) -> None:
+    """Persist + apply credentials when backing out of the WiFi subscreen."""
+    saved = get_settings().wifi
+    changed = ssid != saved.ssid or password != saved.password
+    if changed:
+        set_wifi_credentials(ssid, password)
+    if not ssid:
+        return
+    # Skip the apply if a successful Test already pushed these exact
+    # credentials to nmcli — that subprocess is slow (~5s) and we don't
+    # want to re-run it just because the user is backing out.
+    wifi_state = get_state().settings_menu.wifi
+    already_applied = (
+        wifi_state.last_apply_ok
+        and wifi_state.last_applied_ssid == ssid
+        and wifi_state.last_applied_password == password
+    )
+    if already_applied:
+        return
+
+    def run() -> None:
+        from baseball_display import wifi as wifi_mod
+        wifi_mod.connect(ssid, password)
+
+    threading.Thread(target=run, daemon=True, name="wifi-apply").start()
 
 
 class MainMenuState(BaseModel):
@@ -2204,16 +2610,14 @@ class State(BaseModel):
                 self.players = PlayersState()  # reset browse state
             elif self.main_menu.selected_item() == "Settings":
                 self.mode = DisplayMode.SETTINGS
+                self.settings_menu = SettingsState()
         elif self.mode == DisplayMode.GAME_SELECT:
             selected = self.game_select.get_selected_game()
             if selected is not None:
                 self.selected_game = selected
                 self.mode = _TAB_MODES[self.game_select.tab_index]
         elif self.mode == DisplayMode.SETTINGS:
-            if self.settings_menu.editing:
-                self.settings_menu.confirm_edit()
-            else:
-                self.settings_menu.enter_edit()
+            self.settings_menu.handle_click_x()
         elif self.mode == DisplayMode.PLAYERS:
             if self.players.sub_mode == "browse":
                 self.players.enter_stats_mode()
@@ -2223,9 +2627,7 @@ class State(BaseModel):
         if self.mode == DisplayMode.GAME_SELECT:
             self.mode = DisplayMode.MAIN_MENU
         elif self.mode == DisplayMode.SETTINGS:
-            if self.settings_menu.editing:
-                self.settings_menu.cancel_edit()
-            else:
+            if not self.settings_menu.handle_click_y():
                 self.mode = DisplayMode.MAIN_MENU
         elif self.mode == DisplayMode.PLAYERS:
             if self.players.sub_mode == "stats":

@@ -16,3 +16,4 @@ from .player_select import PlayerSelect
 from .player_stats_panel import PlayerStatsPanel
 from .scoreboard import Scoreboard
 from .settings_menu import SettingsMenu
+from .settings_menu_wifi import SettingsMenuWiFi
