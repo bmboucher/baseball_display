@@ -118,7 +118,7 @@ this package is models-only and does not expose an HTTP client.)
 
 ## Pi-specific notes
 
-- Encoder wiring (BCM): X switch=24, X enc=22/23 → LEFT/RIGHT + SPACE;
+- Encoder wiring (BCM): X switch=23, X enc=22/24 → LEFT/RIGHT + SPACE;
   Y switch=17, Y enc=18/27 → UP/DOWN + ENTER. Documented in
   `PI_SETUP.md` §1.
 - Panel wiring (BCM): CS GPIO 8/7/0 (left/right/diamond), shared D/C
