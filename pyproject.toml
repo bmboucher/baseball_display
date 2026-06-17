@@ -10,6 +10,11 @@ dependencies = [
     "pygame",
     "pydantic",
     "MLB-StatsAPI",
+    # Team logos ship as SVG; svglib + reportlab rasterize them and Pillow
+    # (imported directly in logos.py) recovers their alpha channel.
+    "svglib",
+    "reportlab",
+    "pillow",
 ]
 
 [project.optional-dependencies]
