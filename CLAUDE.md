@@ -118,8 +118,8 @@ this package is models-only and does not expose an HTTP client.)
 
 ## Pi-specific notes
 
-- Encoder wiring (BCM): X switch=23, X enc=22/24 → LEFT/RIGHT + SPACE;
-  Y switch=17, Y enc=18/27 → UP/DOWN + ENTER. Documented in
+- Encoder wiring (BCM): left switch=23, left enc=22/24 → UP/DOWN + RETURN;
+  right switch=17, right enc=18/27 → LEFT/RIGHT + SPACE. Documented in
   `PI_SETUP.md` §1.
 - Panel wiring (BCM): CS GPIO 8/7/0 (left/right/diamond), shared D/C
   GPIO 1, shared RST GPIO 5, backlight GPIO 25. The Python driver in

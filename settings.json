@@ -4,7 +4,7 @@
   "startup_team": "NYM",
   "panels": {
     "left": {
-      "cs_pin": 8,
+      "cs_pin": 0,
       "dc_pin": 1,
       "rst_pin": 5,
       "led_pin": 25,
@@ -26,7 +26,7 @@
       "bgr": true
     },
     "diamond": {
-      "cs_pin": 0,
+      "cs_pin": 8,
       "dc_pin": 1,
       "rst_pin": 5,
       "led_pin": null,

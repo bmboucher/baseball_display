@@ -193,27 +193,27 @@ class PiInputAdapter:
             adapter._encoders = [
                 _RotaryEncoder(
                     EncoderConfig(
-                        name="X encoder (left)",
+                        name="left encoder",
                         clk_pin=24,
                         dt_pin=22,
                         sw_pin=23,
-                        cw_key=pygame.K_RIGHT,
-                        ccw_key=pygame.K_LEFT,
-                        button_key=pygame.K_SPACE,
+                        cw_key=pygame.K_DOWN,
+                        ccw_key=pygame.K_UP,
+                        button_key=pygame.K_RETURN,
                     ),
                     gpio,
                     adapter._queue.put_nowait,
                 ),
                 _RotaryEncoder(
                     EncoderConfig(
-                        name="Y encoder (right)",
+                        name="right encoder",
                         # clk/dt swapped vs the wiring labels to reverse direction
                         clk_pin=27,
                         dt_pin=18,
                         sw_pin=17,
-                        cw_key=pygame.K_DOWN,
-                        ccw_key=pygame.K_UP,
-                        button_key=pygame.K_RETURN,
+                        cw_key=pygame.K_RIGHT,
+                        ccw_key=pygame.K_LEFT,
+                        button_key=pygame.K_SPACE,
                     ),
                     gpio,
                     adapter._queue.put_nowait,
@@ -224,8 +224,8 @@ class PiInputAdapter:
                 encoder.setup()
 
             logger.info(
-                "Pi GPIO input enabled: X encoder -> LEFT/RIGHT + RETURN, "
-                "Y encoder -> UP/DOWN + SPACE"
+                "Pi GPIO input enabled: left encoder -> UP/DOWN + RETURN, "
+                "right encoder -> LEFT/RIGHT + SPACE"
             )
             return adapter
         except Exception:
