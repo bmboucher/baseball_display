@@ -46,8 +46,8 @@ log "updated $old_head -> $new_head"
 # service comes up with the new wheel set.
 if sudo -u "$REPO_USER" git diff --name-only "$old_head" "$new_head" \
         | grep -qE '^(pyproject\.toml|setup\.py|setup\.cfg)$'; then
-    log "pyproject.toml/setup files changed; running pip install -e ."
-    sudo -u "$REPO_USER" "$VENV_PIP" install -e "$REPO_DIR" --quiet
+    log "pyproject.toml/setup files changed; running pip install -e .[raspberry-pi]"
+    sudo -u "$REPO_USER" "$VENV_PIP" install -e "$REPO_DIR"'[raspberry-pi]' --quiet
 fi
 
 log "restarting $SERVICE_NAME"

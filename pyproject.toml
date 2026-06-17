@@ -26,6 +26,12 @@ raspberry-pi = [
     "rpi-lgpio",
     "spidev",
     "numpy",
+    # reportlab's renderPM needs a rasterization backend. The Windows wheel
+    # ships the compiled `_rl_renderPM` C backend, but the Linux/aarch64
+    # install does not, so logos.py can't rasterize SVGs and team logos
+    # render as blank white squares. rlPyCairo (pulls pycairo + freetype-py)
+    # is reportlab's supported fallback backend and is prebuilt on piwheels.
+    "rlPyCairo",
 ]
 
 [tool.setuptools]
