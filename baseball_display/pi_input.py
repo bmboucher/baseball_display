@@ -57,9 +57,9 @@ class _RotaryEncoder:
         self._button_debounce_seconds = 0.04
 
     def setup(self) -> None:
-        self._gpio.setup(self.config.clk_pin, self._gpio.IN, pull_up_down=self._gpio.PUD_UP)
-        self._gpio.setup(self.config.dt_pin, self._gpio.IN, pull_up_down=self._gpio.PUD_UP)
-        self._gpio.setup(self.config.sw_pin, self._gpio.IN, pull_up_down=self._gpio.PUD_UP)
+        self._gpio.setup(self.config.clk_pin, self._gpio.IN, pull_up_down=self._gpio.PUD_OFF)
+        self._gpio.setup(self.config.dt_pin, self._gpio.IN, pull_up_down=self._gpio.PUD_OFF)
+        self._gpio.setup(self.config.sw_pin, self._gpio.IN, pull_up_down=self._gpio.PUD_OFF)
 
         self._last_state = self._read_state()
         self._last_button_pressed = self._read_button_pressed()
@@ -83,11 +83,12 @@ class _RotaryEncoder:
                 callback=self._on_button,
                 bouncetime=40,
             )
-        except RuntimeError:
+        except RuntimeError as exc:
             self._polling_mode = True
             logger.warning(
-                "[%s] GPIO edge detection unavailable; using polling fallback",
+                "[%s] GPIO edge detection unavailable (%s); using polling fallback",
                 self.config.name,
+                exc,
             )
 
     def cleanup(self) -> None:
@@ -116,6 +117,7 @@ class _RotaryEncoder:
             return
 
         self._accumulator += delta
+        logger.debug("[%s] rotate delta=%+d accumulator=%d", self.config.name, delta, self._accumulator)
         if abs(self._accumulator) >= 4:
             detents = int(self._accumulator / 4)
             self._accumulator -= detents * 4
@@ -197,8 +199,8 @@ class PiInputAdapter:
                         clk_pin=24,
                         dt_pin=22,
                         sw_pin=23,
-                        cw_key=pygame.K_DOWN,
-                        ccw_key=pygame.K_UP,
+                        cw_key=pygame.K_UP,
+                        ccw_key=pygame.K_DOWN,
                         button_key=pygame.K_RETURN,
                     ),
                     gpio,
